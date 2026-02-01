@@ -1,0 +1,129 @@
+{
+  "function_id": "func-014-csv-parse",
+  "name": "parse_csv_simple",
+  "display_name": "简单 CSV 解析器",
+  "description": "解析 CSV 格式字符串，支持自定义分隔符和引号，返回结构化数据。",
+  "language": "python",
+  "version": "1.0.0",
+  "signature": {
+    "inputs": [
+      {
+        "name": "csv_text",
+        "type": "str",
+        "description": "CSV 文本",
+        "required": true
+      },
+      {
+        "name": "delimiter",
+        "type": "str",
+        "description": "分隔符",
+        "required": false,
+        "default": ","
+      },
+      {
+        "name": "has_header",
+        "type": "bool",
+        "description": "第一行是否为表头",
+        "required": false,
+        "default": true
+      }
+    ],
+    "outputs": [
+      {
+        "name": "success",
+        "type": "bool",
+        "description": "解析是否成功"
+      },
+      {
+        "name": "headers",
+        "type": "list",
+        "description": "表头列表"
+      },
+      {
+        "name": "rows",
+        "type": "list",
+        "description": "数据行（字典列表）"
+      },
+      {
+        "name": "row_count",
+        "type": "int",
+        "description": "行数"
+      }
+    ]
+  },
+  "code": {
+    "source": "import csv\nimport io\nfrom typing import Tuple, List, Dict, Any\n\ndef parse_csv_simple(\n    csv_text: str, \n    delimiter: str = ',',\n    has_header: bool = True\n) -> Tuple[bool, List[str], List[Dict[str, Any]], int]:\n    \"\"\"\n    解析 CSV 文本。\n    \"\"\"\n    if not csv_text:\n        return True, [], [], 0\n    \n    try:\n        # 使用 StringIO 处理文本\n        csv_file = io.StringIO(csv_text)\n        reader = csv.reader(csv_file, delimiter=delimiter)\n        \n        rows = list(reader)\n        \n        if not rows:\n            return True, [], [], 0\n        \n        headers = []\n        data_rows = []\n        \n        if has_header:\n            headers = rows[0]\n            data = rows[1:]\n            # 转换为字典列表\n            for row in data:\n                row_dict = {}\n                for i, header in enumerate(headers):\n                    row_dict[header] = row[i] if i < len(row) else ''\n                data_rows.append(row_dict)\n        else:\n            # 没有表头，使用数字索引\n            headers = [f'col_{i}' for i in range(len(rows[0]))]\n            for row in rows:\n                row_dict = {}\n                for i, header in enumerate(headers):\n                    row_dict[header] = row[i] if i < len(row) else ''\n                data_rows.append(row_dict)\n        \n        return True, headers, data_rows, len(data_rows)\n        \n    except Exception as e:\n        return False, [], [], 0",
+    "hash": "sha256:placeholder",
+    "line_count": 48,
+    "complexity": 3.0
+  },
+  "test_cases": [
+    {
+      "name": "simple_csv",
+      "description": "简单CSV",
+      "input": { "csv_text": "name,age,city\nAlice,30,NYC\nBob,25,LA", "delimiter": ",", "has_header": true },
+      "expected": { "success": true, "headers": ["name", "age", "city"], "row_count": 2 },
+      "tags": ["happy_path", "simple"]
+    },
+    {
+      "name": "no_header",
+      "description": "无表头",
+      "input": { "csv_text": "Alice,30\nBob,25", "has_header": false },
+      "expected": { "success": true, "headers": ["col_0", "col_1"], "row_count": 2 },
+      "tags": ["happy_path", "no_header"]
+    },
+    {
+      "name": "semicolon_delimiter",
+      "description": "分号分隔符",
+      "input": { "csv_text": "name;age\nAlice;30", "delimiter": ";", "has_header": true },
+      "expected": { "success": true, "row_count": 1 },
+      "tags": ["happy_path", "delimiter"]
+    },
+    {
+      "name": "empty_csv",
+      "description": "空CSV",
+      "input": { "csv_text": "", "has_header": true },
+      "expected": { "success": true, "row_count": 0 },
+      "tags": ["edge_case"]
+    },
+    {
+      "name": "quoted_fields",
+      "description": "带引号的字段",
+      "input": { "csv_text": 'name,description\nAlice,"Hello, World!"', "has_header": true },
+      "expected": { "success": true, "row_count": 1 },
+      "tags": ["happy_path", "quoted"]
+    }
+  ],
+  "dependencies": [
+    { "name": "csv", "type": "builtin" },
+    { "name": "io", "type": "builtin" },
+    { "name": "typing", "type": "builtin" }
+  ],
+  "tags": ["csv", "parse", "data", "import"],
+  "categories": ["data_processing", "format_conversion"],
+  "usage_scenarios": [
+    "CSV数据导入",
+    "数据转换",
+    "报表处理"
+  ],
+  "performance": {
+    "time_complexity": "O(n)",
+    "benchmarks": [
+      { "dataset_size": "10000 rows", "avg_time_ms": 50, "memory_mb": 10 }
+    ]
+  },
+  "security": {
+    "sandbox_required": false,
+    "network_access": false,
+    "filesystem_access": false,
+    "risk_level": "low"
+  },
+  "author": {
+    "name": "DataAgent_1.0",
+    "type": "agent",
+    "agent_id": "agent_demo_014"
+  },
+  "license": "MIT",
+  "created_at": "2026-02-01T09:35:00Z",
+  "updated_at": "2026-02-01T09:35:00Z"
+}

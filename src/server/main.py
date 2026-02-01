@@ -132,42 +132,20 @@ class SearchResult(BaseModel):
     manifest: Dict[str, Any]
 
 
-# 简单的向量表示（使用关键词匹配作为原型）
-def get_vector_representation(text: str) -> List[str]:
-    """获取文本的向量表示（关键词列表）"""
-    # 简化的实现：分词并去重
-    words = text.lower().split()
-    # 添加一些常见同义词
-    synonyms = {
-        "email": ["mail", "mailbox"],
-        "validate": ["check", "verify", "validation"],
-        "phone": ["mobile", "cellphone", "telephone"],
-        "date": ["time", "datetime", "calendar"],
-        "text": ["string", "content", "article"],
-        "truncate": ["cut", "shorten", "limit"],
-    }
-    result = set(words)
-    for word in words:
-        if word in synonyms:
-            result.update(synonyms[word])
-    return list(result)
+# 导入向量搜索
+from vector_search import VectorSearchService, keyword_search
 
+# 初始化向量搜索服务
+vector_service = VectorSearchService()
 
-def calculate_similarity(query: str, func_manifest: dict) -> float:
-    """计算查询与函数的相似度（简化版）"""
-    query_words = set(get_vector_representation(query))
+# 启动时加载函数到向量索引
+@app.on_event("startup")
+async def startup_event():
+    load_functions()
     
-    # 构建函数描述文本
-    func_text = f"{func_manifest.get('name', '')} {func_manifest.get('description', '')} {' '.join(func_manifest.get('tags', []))}"
-    func_words = set(get_vector_representation(func_text))
-    
-    if not query_words or not func_words:
-        return 0.0
-    
-    # Jaccard 相似度
-    intersection = len(query_words & func_words)
-    union = len(query_words | func_words)
-    return intersection / union if union > 0 else 0.0
+    # 加载到向量索引
+    for func_id, func_data in functions_db.items():
+        vector_service.add_function(func_id, func_data)
 
 
 # API 路由
@@ -178,7 +156,12 @@ async def root():
         "name": "AgentFuncHub",
         "version": "0.1.0",
         "status": "running",
-        "functions_count": len(functions_db)
+        "functions_count": len(functions_db),
+        "search": {
+            "method": "hybrid" if vector_service.model else "keyword",
+            "indexed_count": len(vector_service.function_ids) if vector_service.model else 0,
+            "model": vector_service.model_name if vector_service.model else None
+        }
     }
 
 
@@ -209,11 +192,15 @@ async def create_function(manifest: FunctionManifest):
     functions_db[manifest.function_id] = func_data
     save_functions()
     
+    # 添加到向量索引
+    vector_service.add_function(manifest.function_id, func_data)
+    
     return {
         "success": True,
         "function_id": manifest.function_id,
         "url": f"/functions/{manifest.function_id}",
-        "message": "Function created successfully"
+        "message": "Function created successfully",
+        "indexed": vector_service.model is not None
     }
 
 
@@ -264,34 +251,59 @@ async def list_functions(
 @app.post("/search")
 async def search_functions(query: SearchQuery):
     """
-    语义搜索函数
+    语义搜索函数（使用向量搜索）
     """
-    results = []
-    
+    # 先获取关键词匹配结果
+    keyword_matches = []
     for func_id, func_data in functions_db.items():
-        score = calculate_similarity(query.query, func_data)
-        
+        score = keyword_search(query.query, func_data)
+        if score > 0.1:
+            keyword_matches.append(func_id)
+    
+    # 使用向量搜索或混合搜索
+    if vector_service.model:
+        # 混合搜索
+        search_results = vector_service.search_hybrid(
+            query.query, 
+            keyword_matches, 
+            top_k=query.limit * 2
+        )
+    else:
+        # 降级到纯关键词搜索
+        search_results = []
+        for func_id in keyword_matches:
+            func_data = functions_db[func_id]
+            score = keyword_search(query.query, func_data)
+            search_results.append((func_id, score))
+        search_results.sort(key=lambda x: x[1], reverse=True)
+        search_results = search_results[:query.limit]
+    
+    # 构建结果
+    results = []
+    for func_id, score in search_results:
+        func_data = functions_db.get(func_id)
+        if not func_data:
+            continue
+            
         # 语言过滤
         if query.language and func_data.get("language") != query.language:
             continue
         
-        if score > 0:  # 只返回有相似度的结果
-            results.append({
-                "function_id": func_id,
-                "name": func_data.get("name"),
-                "description": func_data.get("description"),
-                "similarity_score": round(score, 3),
-                "manifest": func_data
-            })
+        results.append({
+            "function_id": func_id,
+            "name": func_data.get("name"),
+            "description": func_data.get("description"),
+            "similarity_score": round(score, 3),
+            "manifest": func_data
+        })
     
-    # 按相似度排序
-    results.sort(key=lambda x: x["similarity_score"], reverse=True)
     results = results[:query.limit]
     
     return {
         "success": True,
         "query": query.query,
         "total": len(results),
+        "search_method": "hybrid" if vector_service.model else "keyword",
         "results": results
     }
 

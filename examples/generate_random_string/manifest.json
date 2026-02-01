@@ -1,0 +1,121 @@
+{
+  "function_id": "func-013-random-string",
+  "name": "generate_random_string",
+  "display_name": "随机字符串生成器",
+  "description": "生成指定长度和字符集的随机字符串，支持密码、验证码、token 等场景。",
+  "language": "python",
+  "version": "1.0.0",
+  "signature": {
+    "inputs": [
+      {
+        "name": "length",
+        "type": "int",
+        "description": "字符串长度",
+        "required": true
+      },
+      {
+        "name": "charset",
+        "type": "str",
+        "description": "字符集（alphanumeric/alphabetic/numeric/symbolic/hex）",
+        "required": false,
+        "default": "alphanumeric"
+      },
+      {
+        "name": "uppercase_only",
+        "type": "bool",
+        "description": "仅使用大写字母",
+        "required": false,
+        "default": false
+      }
+    ],
+    "outputs": [
+      {
+        "name": "random_string",
+        "type": "str",
+        "description": "生成的随机字符串"
+      },
+      {
+        "name": "entropy",
+        "type": "float",
+        "description": "信息熵（bits）"
+      }
+    ]
+  },
+  "code": {
+    "source": "import random\nimport string\nimport math\nfrom typing import Tuple\n\ndef generate_random_string(\n    length: int, \n    charset: str = 'alphanumeric',\n    uppercase_only: bool = False\n) -> Tuple[str, float]:\n    \"\"\"\n    生成随机字符串。\n    \"\"\"\n    if length <= 0:\n        raise ValueError('Length must be positive')\n    \n    # 定义字符集\n    charsets = {\n        'alphanumeric': string.ascii_letters + string.digits,\n        'alphabetic': string.ascii_letters,\n        'numeric': string.digits,\n        'symbolic': string.punctuation,\n        'hex': string.hexdigits.lower(),\n        'base32': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'\n    }\n    \n    chars = charsets.get(charset, charsets['alphanumeric'])\n    \n    if uppercase_only:\n        chars = chars.upper()\n    \n    # 生成随机字符串\n    result = ''.join(random.choice(chars) for _ in range(length))\n    \n    # 计算信息熵\n    pool_size = len(chars)\n    entropy = length * math.log2(pool_size)\n    \n    return result, round(entropy, 2)",
+    "hash": "sha256:placeholder",
+    "line_count": 38,
+    "complexity": 2.5
+  },
+  "test_cases": [
+    {
+      "name": "alphanumeric_16",
+      "description": "16位字母数字",
+      "input": { "length": 16, "charset": "alphanumeric", "uppercase_only": false },
+      "expected": { "entropy": 95.27 },
+      "tags": ["happy_path", "alphanumeric"]
+    },
+    {
+      "name": "numeric_6",
+      "description": "6位数字（验证码）",
+      "input": { "length": 6, "charset": "numeric" },
+      "expected": { "entropy": 19.93 },
+      "tags": ["happy_path", "verification_code"]
+    },
+    {
+      "name": "hex_32",
+      "description": "32位十六进制",
+      "input": { "length": 32, "charset": "hex" },
+      "expected": { "entropy": 128.0 },
+      "tags": ["happy_path", "hex"]
+    },
+    {
+      "name": "uppercase_token",
+      "description": "大写字母token",
+      "input": { "length": 8, "charset": "alphabetic", "uppercase_only": true },
+      "expected": { "entropy": 37.6 },
+      "tags": ["happy_path", "token"]
+    },
+    {
+      "name": "invalid_length",
+      "description": "无效长度",
+      "input": { "length": 0, "charset": "alphanumeric" },
+      "expected": { "raises": "ValueError" },
+      "tags": ["validation", "error"]
+    }
+  ],
+  "dependencies": [
+    { "name": "random", "type": "builtin" },
+    { "name": "string", "type": "builtin" },
+    { "name": "math", "type": "builtin" },
+    { "name": "typing", "type": "builtin" }
+  ],
+  "tags": ["random", "string", "generator", "password", "token"],
+  "categories": ["text_processing", "security"],
+  "usage_scenarios": [
+    "生成验证码",
+    "创建随机密码",
+    "生成API密钥",
+    "创建会话token"
+  ],
+  "performance": {
+    "time_complexity": "O(n)",
+    "benchmarks": [
+      { "dataset_size": "1000 strings (32 chars)", "avg_time_ms": 0.5, "memory_mb": 1 }
+    ]
+  },
+  "security": {
+    "sandbox_required": false,
+    "network_access": false,
+    "filesystem_access": false,
+    "risk_level": "low"
+  },
+  "author": {
+    "name": "CryptoAgent_1.0",
+    "type": "agent",
+    "agent_id": "agent_demo_013"
+  },
+  "license": "MIT",
+  "created_at": "2026-02-01T09:30:00Z",
+  "updated_at": "2026-02-01T09:30:00Z"
+}
