@@ -1,0 +1,117 @@
+{
+  "function_id": "func-021-masking",
+  "name": "mask_sensitive_data",
+  "display_name": "敏感数据脱敏",
+  "description": "对敏感数据进行脱敏处理，支持手机号、邮箱、身份证号、银行卡号等。",
+  "language": "python",
+  "version": "1.0.0",
+  "signature": {
+    "inputs": [
+      {
+        "name": "data",
+        "type": "str",
+        "description": "原始数据",
+        "required": true
+      },
+      {
+        "name": "data_type",
+        "type": "str",
+        "description": "数据类型（phone/email/id_card/bank_card/generic）",
+        "required": true
+      },
+      {
+        "name": "mask_char",
+        "type": "str",
+        "description": "脱敏字符",
+        "required": false,
+        "default": "*"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "masked",
+        "type": "str",
+        "description": "脱敏后的数据"
+      },
+      {
+        "name": "valid",
+        "type": "bool",
+        "description": "原始数据是否有效"
+      }
+    ]
+  },
+  "code": {
+    "source": "from typing import Tuple\n\ndef mask_sensitive_data(\n    data: str, \n    data_type: str,\n    mask_char: str = '*'\n) -> Tuple[str, bool]:\n    \"\"\"\n    敏感数据脱敏。\n    \"\"\"\n    if not data:\n        return '', False\n    \n    data = str(data).strip()\n    \n    if data_type == 'phone':\n        # 手机号: 保留前3后4\n        if len(data) == 11:\n            return data[:3] + mask_char * 4 + data[-4:], True\n        return data, False\n    \n    elif data_type == 'email':\n        # 邮箱: 保留首字符和域名\n        if '@' in data:\n            local, domain = data.split('@')\n            if len(local) > 1:\n                masked_local = local[0] + mask_char * (len(local) - 1)\n                return masked_local + '@' + domain, True\n        return data, False\n    \n    elif data_type == 'id_card':\n        # 身份证: 保留前6后4\n        if len(data) in [15, 18]:\n            return data[:6] + mask_char * (len(data) - 10) + data[-4:], True\n        return data, False\n    \n    elif data_type == 'bank_card':\n        # 银行卡: 保留后4位\n        if len(data) >= 10:\n            return mask_char * (len(data) - 4) + data[-4:], True\n        return data, False\n    \n    elif data_type == 'generic':\n        # 通用: 保留首尾各2个字符\n        if len(data) <= 4:\n            return mask_char * len(data), True\n        return data[:2] + mask_char * (len(data) - 4) + data[-2:], True\n    \n    else:\n        return data, False",
+    "hash": "sha256:placeholder",
+    "line_count": 47,
+    "complexity": 3.5
+  },
+  "test_cases": [
+    {
+      "name": "mask_phone",
+      "description": "手机号脱敏",
+      "input": { "data": "13812345678", "data_type": "phone", "mask_char": "*" },
+      "expected": { "masked": "138****5678", "valid": true },
+      "tags": ["happy_path", "phone"]
+    },
+    {
+      "name": "mask_email",
+      "description": "邮箱脱敏",
+      "input": { "data": "user@example.com", "data_type": "email" },
+      "expected": { "masked": "u***@example.com", "valid": true },
+      "tags": ["happy_path", "email"]
+    },
+    {
+      "name": "mask_id_card",
+      "description": "身份证脱敏",
+      "input": { "data": "110101199003077513", "data_type": "id_card" },
+      "expected": { "masked": "110101********7513", "valid": true },
+      "tags": ["happy_path", "id_card"]
+    },
+    {
+      "name": "mask_bank_card",
+      "description": "银行卡脱敏",
+      "input": { "data": "6222021234567890123", "data_type": "bank_card" },
+      "expected": { "masked": "***************0123", "valid": true },
+      "tags": ["happy_path", "bank"]
+    },
+    {
+      "name": "invalid_phone",
+      "description": "无效手机号",
+      "input": { "data": "123", "data_type": "phone" },
+      "expected": { "masked": "123", "valid": false },
+      "tags": ["validation", "error"]
+    }
+  ],
+  "dependencies": [
+    { "name": "typing", "type": "builtin" }
+  ],
+  "tags": ["mask", "sensitive", "privacy", "security"],
+  "categories": ["security"],
+  "usage_scenarios": [
+    "日志脱敏",
+    "用户信息显示",
+    "数据导出保护"
+  ],
+  "performance": {
+    "time_complexity": "O(1)",
+    "benchmarks": [
+      { "dataset_size": "10000 items", "avg_time_ms": 0.1, "memory_mb": 1 }
+    ]
+  },
+  "security": {
+    "sandbox_required": false,
+    "network_access": false,
+    "filesystem_access": false,
+    "sensitive_data": true,
+    "risk_level": "low"
+  },
+  "author": {
+    "name": "SecurityAgent_1.0",
+    "type": "agent",
+    "agent_id": "agent_demo_021"
+  },
+  "license": "MIT",
+  "created_at": "2026-02-01T10:10:00Z",
+  "updated_at": "2026-02-01T10:10:00Z"
+}

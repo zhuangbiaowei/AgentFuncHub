@@ -1,0 +1,117 @@
+{
+  "function_id": "func-016-time-format",
+  "name": "format_duration",
+  "display_name": "时长格式化器",
+  "description": "将秒数转换为人类可读的时长字符串，支持多种格式（中文、英文、紧凑格式）。",
+  "language": "python",
+  "version": "1.0.0",
+  "signature": {
+    "inputs": [
+      {
+        "name": "seconds",
+        "type": "int",
+        "description": "秒数",
+        "required": true
+      },
+      {
+        "name": "format",
+        "type": "str",
+        "description": "格式类型（human/cn/compact/iso）",
+        "required": false,
+        "default": "human"
+      },
+      {
+        "name": "precision",
+        "type": "int",
+        "description": "精度（显示的最大单位数）",
+        "required": false,
+        "default": 2
+      }
+    ],
+    "outputs": [
+      {
+        "name": "formatted",
+        "type": "str",
+        "description": "格式化后的时长字符串"
+      },
+      {
+        "name": "components",
+        "type": "dict",
+        "description": "各时间单位的数值"
+      }
+    ]
+  },
+  "code": {
+    "source": "from typing import Tuple, Dict\n\ndef format_duration(\n    seconds: int, \n    format: str = 'human',\n    precision: int = 2\n) -> Tuple[str, Dict[str, int]]:\n    \"\"\"\n    格式化时长。\n    \"\"\"\n    if seconds < 0:\n        raise ValueError('Seconds must be non-negative')\n    \n    # 计算各时间单位\n    days = seconds // 86400\n    remaining = seconds % 86400\n    hours = remaining // 3600\n    remaining = remaining % 3600\n    minutes = remaining // 60\n    secs = remaining % 60\n    \n    components = {\n        'days': days,\n        'hours': hours,\n        'minutes': minutes,\n        'seconds': secs\n    }\n    \n    # 根据格式生成字符串\n    if format == 'human':\n        parts = []\n        if days > 0:\n            parts.append(f'{days} day{\"s\" if days != 1 else \"\"}')\n        if hours > 0 and len(parts) < precision:\n            parts.append(f'{hours} hour{\"s\" if hours != 1 else \"\"}')\n        if minutes > 0 and len(parts) < precision:\n            parts.append(f'{minutes} min')\n        if secs > 0 and len(parts) < precision:\n            parts.append(f'{secs} sec')\n        \n        formatted = ' '.join(parts) if parts else '0 sec'\n    \n    elif format == 'cn':\n        parts = []\n        if days > 0:\n            parts.append(f'{days}天')\n        if hours > 0 and len(parts) < precision:\n            parts.append(f'{hours}小时')\n        if minutes > 0 and len(parts) < precision:\n            parts.append(f'{minutes}分钟')\n        if secs > 0 and len(parts) < precision:\n            parts.append(f'{secs}秒')\n        \n        formatted = ''.join(parts) if parts else '0秒'\n    \n    elif format == 'compact':\n        parts = []\n        if days > 0:\n            parts.append(f'{days}d')\n        if hours > 0 and len(parts) < precision:\n            parts.append(f'{hours}h')\n        if minutes > 0 and len(parts) < precision:\n            parts.append(f'{minutes}m')\n        if secs > 0 and len(parts) < precision:\n            parts.append(f'{secs}s')\n        \n        formatted = ' '.join(parts) if parts else '0s'\n    \n    elif format == 'iso':\n        # ISO 8601 格式: P[n]DT[n]H[n]M[n]S\n        parts = ['P']\n        if days > 0:\n            parts.append(f'{days}D')\n        if hours > 0 or minutes > 0 or secs > 0:\n            parts.append('T')\n            if hours > 0:\n                parts.append(f'{hours}H')\n            if minutes > 0:\n                parts.append(f'{minutes}M')\n            if secs > 0:\n                parts.append(f'{secs}S')\n        \n        formatted = ''.join(parts) if len(parts) > 1 else 'PT0S'\n    \n    else:\n        raise ValueError(f'Unknown format: {format}')\n    \n    return formatted, components",
+    "hash": "sha256:placeholder",
+    "line_count": 88,
+    "complexity": 4.5
+  },
+  "test_cases": [
+    {
+      "name": "one_hour",
+      "description": "1小时",
+      "input": { "seconds": 3600, "format": "human", "precision": 2 },
+      "expected": { "formatted": "1 hour", "components": { "hours": 1 } },
+      "tags": ["happy_path", "human"]
+    },
+    {
+      "name": "complex_duration_cn",
+      "description": "复杂时长中文",
+      "input": { "seconds": 3661, "format": "cn", "precision": 3 },
+      "expected": { "formatted": "1小时1分钟1秒" },
+      "tags": ["happy_path", "chinese"]
+    },
+    {
+      "name": "compact_format",
+      "description": "紧凑格式",
+      "input": { "seconds": 86400 + 3600 + 60 + 1, "format": "compact", "precision": 4 },
+      "expected": { "formatted": "1d 1h 1m 1s" },
+      "tags": ["happy_path", "compact"]
+    },
+    {
+      "name": "iso_format",
+      "description": "ISO格式",
+      "input": { "seconds": 3661, "format": "iso" },
+      "expected": { "formatted": "PT1H1M1S" },
+      "tags": ["happy_path", "iso"]
+    },
+    {
+      "name": "zero_seconds",
+      "description": "0秒",
+      "input": { "seconds": 0, "format": "human" },
+      "expected": { "formatted": "0 sec" },
+      "tags": ["edge_case"]
+    }
+  ],
+  "dependencies": [
+    { "name": "typing", "type": "builtin" }
+  ],
+  "tags": ["time", "duration", "format", "humanize"],
+  "categories": ["datetime"],
+  "usage_scenarios": [
+    "显示任务执行时间",
+    "视频时长格式化",
+    "倒计时显示"
+  ],
+  "performance": {
+    "time_complexity": "O(1)",
+    "benchmarks": [
+      { "dataset_size": "10000 durations", "avg_time_ms": 0.1, "memory_mb": 1 }
+    ]
+  },
+  "security": {
+    "sandbox_required": false,
+    "network_access": false,
+    "filesystem_access": false,
+    "risk_level": "low"
+  },
+  "author": {
+    "name": "TimeAgent_1.0",
+    "type": "agent",
+    "agent_id": "agent_demo_016"
+  },
+  "license": "MIT",
+  "created_at": "2026-02-01T09:45:00Z",
+  "updated_at": "2026-02-01T09:45:00Z"
+}

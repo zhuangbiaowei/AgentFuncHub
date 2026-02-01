@@ -1,0 +1,110 @@
+{
+  "function_id": "func-017-number-convert",
+  "name": "number_to_chinese",
+  "display_name": "数字转中文",
+  "description": "将阿拉伯数字转换为中文大写或小写数字，支持整数和金额格式。",
+  "language": "python",
+  "version": "1.0.0",
+  "signature": {
+    "inputs": [
+      {
+        "name": "number",
+        "type": "int",
+        "description": "要转换的数字",
+        "required": true
+      },
+      {
+        "name": "style",
+        "type": "str",
+        "description": "样式（lower/upper/money）",
+        "required": false,
+        "default": "lower"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "chinese",
+        "type": "str",
+        "description": "中文数字"
+      },
+      {
+        "name": "valid",
+        "type": "bool",
+        "description": "转换是否成功"
+      }
+    ]
+  },
+  "code": {
+    "source": "from typing import Tuple\n\ndef number_to_chinese(number: int, style: str = 'lower') -> Tuple[str, bool]:\n    \"\"\"\n    数字转中文。\n    \"\"\"\n    if not isinstance(number, int):\n        return '', False\n    \n    if number == 0:\n        return '零' if style == 'lower' else '零', True\n    \n    # 小写数字\n    lower_digits = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九']\n    lower_units = ['', '十', '百', '千', '万', '十', '百', '千', '亿']\n    \n    # 大写数字\n    upper_digits = ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖']\n    upper_units = ['', '拾', '佰', '仟', '万', '拾', '佰', '仟', '亿']\n    \n    digits = lower_digits if style == 'lower' else upper_digits\n    units = lower_units if style == 'lower' else upper_units\n    \n    if style == 'money':\n        digits = upper_digits\n        units = ['', '拾', '佰', '仟', '万', '拾', '佰', '仟', '亿']\n    \n    num_str = str(abs(number))\n    result = ''\n    length = len(num_str)\n    \n    for i, char in enumerate(num_str):\n        digit = int(char)\n        pos = length - i - 1\n        \n        if digit == 0:\n            # 处理零\n            if result and not result.endswith('零') and pos % 4 != 0:\n                result += digits[0]\n        else:\n            result += digits[digit] + units[pos]\n    \n    # 处理连续的零\n    result = result.rstrip('零')\n    \n    # 处理 "一十" 开头的情况\n    if style == 'lower' and result.startswith('一十'):\n        result = result[1:]\n    \n    # 金额格式添加"元整"\n    if style == 'money':\n        result += '元整'\n    \n    if number < 0:\n        result = '负' + result\n    \n    return result, True",
+    "hash": "sha256:placeholder",
+    "line_count": 58,
+    "complexity": 4.0
+  },
+  "test_cases": [
+    {
+      "name": "one_to_ten",
+      "description": "1到10",
+      "input": { "number": 10, "style": "lower" },
+      "expected": { "chinese": "十", "valid": true },
+      "tags": ["happy_path", "lower"]
+    },
+    {
+      "name": "complex_number",
+      "description": "复杂数字",
+      "input": { "number": 12345, "style": "lower" },
+      "expected": { "chinese": "一万二千三百四十五", "valid": true },
+      "tags": ["happy_path", "lower"]
+    },
+    {
+      "name": "upper_case",
+      "description": "大写金额",
+      "input": { "number": 10086, "style": "upper" },
+      "expected": { "chinese": "壹万零捌拾陆", "valid": true },
+      "tags": ["happy_path", "upper"]
+    },
+    {
+      "name": "money_format",
+      "description": "金额格式",
+      "input": { "number": 1000, "style": "money" },
+      "expected": { "chinese": "壹仟元整", "valid": true },
+      "tags": ["happy_path", "money"]
+    },
+    {
+      "name": "zero",
+      "description": "零",
+      "input": { "number": 0, "style": "lower" },
+      "expected": { "chinese": "零", "valid": true },
+      "tags": ["edge_case"]
+    }
+  ],
+  "dependencies": [
+    { "name": "typing", "type": "builtin" }
+  ],
+  "tags": ["chinese", "number", "convert", "localization"],
+  "categories": ["format_conversion"],
+  "usage_scenarios": [
+    "金额大写",
+    "发票金额",
+    "中文数字显示"
+  ],
+  "performance": {
+    "time_complexity": "O(n)",
+    "benchmarks": [
+      { "dataset_size": "10000 numbers", "avg_time_ms": 0.1, "memory_mb": 1 }
+    ]
+  },
+  "security": {
+    "sandbox_required": false,
+    "network_access": false,
+    "filesystem_access": false,
+    "risk_level": "low"
+  },
+  "author": {
+    "name": "TextAgent_1.0",
+    "type": "agent",
+    "agent_id": "agent_demo_017"
+  },
+  "license": "MIT",
+  "created_at": "2026-02-01T09:50:00Z",
+  "updated_at": "2026-02-01T09:50:00Z"
+}

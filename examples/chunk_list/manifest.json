@@ -1,0 +1,128 @@
+{
+  "function_id": "func-018-list-chunk",
+  "name": "chunk_list",
+  "display_name": "列表分块",
+  "description": "将列表分割成指定大小的块，支持批量处理和分页场景。",
+  "language": "python",
+  "version": "1.0.0",
+  "signature": {
+    "inputs": [
+      {
+        "name": "items",
+        "type": "list",
+        "description": "输入列表",
+        "required": true
+      },
+      {
+        "name": "chunk_size",
+        "type": "int",
+        "description": "每块大小",
+        "required": true
+      },
+      {
+        "name": "fill_last",
+        "type": "bool",
+        "description": "是否填充最后一块",
+        "required": false,
+        "default": false
+      },
+      {
+        "name": "fill_value",
+        "type": "any",
+        "description": "填充值",
+        "required": false,
+        "default": null
+      }
+    ],
+    "outputs": [
+      {
+        "name": "chunks",
+        "type": "list",
+        "description": "分块后的列表"
+      },
+      {
+        "name": "chunk_count",
+        "type": "int",
+        "description": "块数"
+      },
+      {
+        "name": "original_count",
+        "type": "int",
+        "description": "原始列表长度"
+      }
+    ]
+  },
+  "code": {
+    "source": "from typing import List, Tuple, Any\n\ndef chunk_list(\n    items: List[Any], \n    chunk_size: int,\n    fill_last: bool = False,\n    fill_value: Any = None\n) -> Tuple[List[List[Any]], int, int]:\n    \"\"\"\n    将列表分块。\n    \"\"\"\n    if chunk_size <= 0:\n        raise ValueError('Chunk size must be positive')\n    \n    if not items:\n        return [], 0, 0\n    \n    original_count = len(items)\n    chunks = []\n    \n    for i in range(0, original_count, chunk_size):\n        chunk = items[i:i + chunk_size]\n        \n        # 填充最后一块\n        if fill_last and len(chunk) < chunk_size:\n            chunk = chunk + [fill_value] * (chunk_size - len(chunk))\n        \n        chunks.append(chunk)\n    \n    return chunks, len(chunks), original_count",
+    "hash": "sha256:placeholder",
+    "line_count": 28,
+    "complexity": 2.0
+  },
+  "test_cases": [
+    {
+      "name": "basic_chunk",
+      "description": "基本分块",
+      "input": { "items": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], "chunk_size": 3 },
+      "expected": { "chunks": [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10]], "chunk_count": 4, "original_count": 10 },
+      "tags": ["happy_path"]
+    },
+    {
+      "name": "exact_division",
+      "description": "整除",
+      "input": { "items": [1, 2, 3, 4, 5, 6], "chunk_size": 3 },
+      "expected": { "chunk_count": 2 },
+      "tags": ["happy_path"]
+    },
+    {
+      "name": "with_fill",
+      "description": "填充最后一块",
+      "input": { "items": [1, 2, 3, 4], "chunk_size": 3, "fill_last": true, "fill_value": 0 },
+      "expected": { "chunks": [[1, 2, 3], [4, 0, 0]] },
+      "tags": ["happy_path", "fill"]
+    },
+    {
+      "name": "empty_list",
+      "description": "空列表",
+      "input": { "items": [], "chunk_size": 3 },
+      "expected": { "chunks": [], "chunk_count": 0, "original_count": 0 },
+      "tags": ["edge_case"]
+    },
+    {
+      "name": "single_item",
+      "description": "单元素",
+      "input": { "items": [1], "chunk_size": 5 },
+      "expected": { "chunk_count": 1, "original_count": 1 },
+      "tags": ["edge_case"]
+    }
+  ],
+  "dependencies": [
+    { "name": "typing", "type": "builtin" }
+  ],
+  "tags": ["list", "chunk", "batch", "pagination"],
+  "categories": ["data_processing"],
+  "usage_scenarios": [
+    "批量处理",
+    "分页显示",
+    "数据分批上传"
+  ],
+  "performance": {
+    "time_complexity": "O(n)",
+    "benchmarks": [
+      { "dataset_size": "100000 items", "avg_time_ms": 20, "memory_mb": 10 }
+    ]
+  },
+  "security": {
+    "sandbox_required": false,
+    "network_access": false,
+    "filesystem_access": false,
+    "risk_level": "low"
+  },
+  "author": {
+    "name": "DataAgent_1.0",
+    "type": "agent",
+    "agent_id": "agent_demo_018"
+  },
+  "license": "MIT",
+  "created_at": "2026-02-01T09:55:00Z",
+  "updated_at": "2026-02-01T09:55:00Z"
+}

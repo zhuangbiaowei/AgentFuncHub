@@ -1,0 +1,123 @@
+{
+  "function_id": "func-019-deduplicate",
+  "name": "deduplicate_list",
+  "display_name": "列表去重",
+  "description": "移除列表中的重复元素，支持保留顺序和自定义去重键。",
+  "language": "python",
+  "version": "1.0.0",
+  "signature": {
+    "inputs": [
+      {
+        "name": "items",
+        "type": "list",
+        "description": "输入列表",
+        "required": true
+      },
+      {
+        "name": "preserve_order",
+        "type": "bool",
+        "description": "是否保留原始顺序",
+        "required": false,
+        "default": true
+      },
+      {
+        "name": "key",
+        "type": "str",
+        "description": "去重键（用于字典列表）",
+        "required": false,
+        "default": null
+      }
+    ],
+    "outputs": [
+      {
+        "name": "unique_items",
+        "type": "list",
+        "description": "去重后的列表"
+      },
+      {
+        "name": "removed_count",
+        "type": "int",
+        "description": "移除的元素数"
+      },
+      {
+        "name": "original_count",
+        "type": "int",
+        "description": "原始列表长度"
+      }
+    ]
+  },
+  "code": {
+    "source": "from typing import List, Tuple, Any, Optional\n\ndef deduplicate_list(\n    items: List[Any], \n    preserve_order: bool = True,\n    key: Optional[str] = None\n) -> Tuple[List[Any], int, int]:\n    \"\"\"\n    列表去重。\n    \"\"\"\n    if not items:\n        return [], 0, 0\n    \n    original_count = len(items)\n    seen = set()\n    unique_items = []\n    \n    for item in items:\n        # 确定用于去重的键\n        if key and isinstance(item, dict):\n            compare_key = item.get(key)\n        else:\n            compare_key = item\n        \n        # 处理不可哈希类型\n        try:\n            hash(compare_key)\n        except TypeError:\n            # 不可哈希，转为字符串\n            compare_key = str(compare_key)\n        \n        if compare_key not in seen:\n            seen.add(compare_key)\n            unique_items.append(item)\n    \n    removed_count = original_count - len(unique_items)\n    \n    if not preserve_order:\n        # 不保留顺序时直接返回集合转换结果\n        try:\n            unique_items = list(set(items))\n        except TypeError:\n            # 包含不可哈希类型，保持原结果
+            pass\n    \n    return unique_items, removed_count, original_count",
+    "hash": "sha256:placeholder",
+    "line_count": 45,
+    "complexity": 3.0
+  },
+  "test_cases": [
+    {
+      "name": "basic_dedup",
+      "description": "基础去重",
+      "input": { "items": [1, 2, 2, 3, 3, 3], "preserve_order": true },
+      "expected": { "unique_items": [1, 2, 3], "removed_count": 3, "original_count": 6 },
+      "tags": ["happy_path"]
+    },
+    {
+      "name": "preserve_order",
+      "description": "保留顺序",
+      "input": { "items": [3, 1, 2, 1, 3], "preserve_order": true },
+      "expected": { "unique_items": [3, 1, 2] },
+      "tags": ["happy_path", "order"]
+    },
+    {
+      "name": "dict_list_with_key",
+      "description": "字典列表按键去重",
+      "input": { "items": [{"id": 1, "name": "A"}, {"id": 2, "name": "B"}, {"id": 1, "name": "C"}], "key": "id" },
+      "expected": { "unique_items": [{"id": 1, "name": "A"}, {"id": 2, "name": "B"}], "removed_count": 1 },
+      "tags": ["happy_path", "dict"]
+    },
+    {
+      "name": "empty_list",
+      "description": "空列表",
+      "input": { "items": [] },
+      "expected": { "unique_items": [], "removed_count": 0, "original_count": 0 },
+      "tags": ["edge_case"]
+    },
+    {
+      "name": "all_unique",
+      "description": "无重复",
+      "input": { "items": [1, 2, 3, 4] },
+      "expected": { "unique_items": [1, 2, 3, 4], "removed_count": 0 },
+      "tags": ["edge_case"]
+    }
+  ],
+  "dependencies": [
+    { "name": "typing", "type": "builtin" }
+  ],
+  "tags": ["list", "deduplicate", "unique", "filter"],
+  "categories": ["data_processing"],
+  "usage_scenarios": [
+    "数据清洗",
+    "ID去重",
+    "用户列表去重"
+  ],
+  "performance": {
+    "time_complexity": "O(n)",
+    "benchmarks": [
+      { "dataset_size": "100000 items", "avg_time_ms": 15, "memory_mb": 8 }
+    ]
+  },
+  "security": {
+    "sandbox_required": false,
+    "network_access": false,
+    "filesystem_access": false,
+    "risk_level": "low"
+  },
+  "author": {
+    "name": "DataAgent_1.0",
+    "type": "agent",
+    "agent_id": "agent_demo_019"
+  },
+  "license": "MIT",
+  "created_at": "2026-02-01T10:00:00Z",
+  "updated_at": "2026-02-01T10:00:00Z"
+}
