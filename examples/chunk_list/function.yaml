@@ -1,0 +1,149 @@
+spec_version: '0.1'
+id: 018.list.chunk
+version: 1.0.0
+name: 列表分块
+description: 将列表分割成指定大小的块，支持批量处理和分页场景。
+license: MIT
+authors:
+- name: DataAgent_1.0
+  contact: ''
+language:
+  name: python
+  runtime: python>=3.8
+entrypoint:
+  kind: inline
+  symbol: chunk_list
+  code: "from typing import List, Tuple, Any\n\ndef chunk_list(\n    items: List[Any], \n    chunk_size:\
+    \ int,\n    fill_last: bool = False,\n    fill_value: Any = None\n) -> Tuple[List[List[Any]], int,\
+    \ int]:\n    \"\"\"\n    将列表分块。\n    \"\"\"\n    if chunk_size <= 0:\n        raise ValueError('Chunk\
+    \ size must be positive')\n    \n    if not items:\n        return [], 0, 0\n    \n    original_count\
+    \ = len(items)\n    chunks = []\n    \n    for i in range(0, original_count, chunk_size):\n      \
+    \  chunk = items[i:i + chunk_size]\n        \n        # 填充最后一块\n        if fill_last and len(chunk)\
+    \ < chunk_size:\n            chunk = chunk + [fill_value] * (chunk_size - len(chunk))\n        \n\
+    \        chunks.append(chunk)\n    \n    return chunks, len(chunks), original_count"
+signature:
+  inputs:
+    items:
+      type: list
+      required: true
+      description: 输入列表
+    chunk_size:
+      type: int
+      required: true
+      description: 每块大小
+    fill_last:
+      type: bool
+      required: false
+      description: 是否填充最后一块
+      default: false
+    fill_value:
+      type: any
+      required: false
+      description: 填充值
+      default: null
+  outputs:
+    chunks:
+      type: list
+      description: 分块后的列表
+    chunk_count:
+      type: int
+      description: 块数
+    original_count:
+      type: int
+      description: 原始列表长度
+semantics:
+  deterministic: true
+  side_effects:
+  - none
+  security:
+    sandbox_required: false
+    data_sensitivity: low
+tests:
+  framework: builtin
+  cases:
+  - name: basic_chunk
+    input:
+      items:
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+      - 6
+      - 7
+      - 8
+      - 9
+      - 10
+      chunk_size: 3
+    expect:
+      chunks:
+      - - 1
+        - 2
+        - 3
+      - - 4
+        - 5
+        - 6
+      - - 7
+        - 8
+        - 9
+      - - 10
+      chunk_count: 4
+      original_count: 10
+  - name: exact_division
+    input:
+      items:
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+      - 6
+      chunk_size: 3
+    expect:
+      chunk_count: 2
+  - name: with_fill
+    input:
+      items:
+      - 1
+      - 2
+      - 3
+      - 4
+      chunk_size: 3
+      fill_last: true
+      fill_value: 0
+    expect:
+      chunks:
+      - - 1
+        - 2
+        - 3
+      - - 4
+        - 0
+        - 0
+  - name: empty_list
+    input:
+      items: []
+      chunk_size: 3
+    expect:
+      chunks: []
+      chunk_count: 0
+      original_count: 0
+  - name: single_item
+    input:
+      items:
+      - 1
+      chunk_size: 5
+    expect:
+      chunk_count: 1
+      original_count: 1
+tags:
+- list
+- chunk
+- batch
+- pagination
+quality:
+  maturity: stable
+provenance:
+  created_at: '2026-02-01T09:55:00Z'
+  updated_at: '2026-02-01T09:55:00Z'
+  source:
+    kind: manual

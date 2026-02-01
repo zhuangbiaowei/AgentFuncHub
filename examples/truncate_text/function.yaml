@@ -1,0 +1,126 @@
+spec_version: '0.1'
+id: 005.text.truncate
+version: 1.0.0
+name: 智能文本截断
+description: 智能截断长文本，支持按字符数、单词数或句子数截断，保持语义完整性。
+license: MIT
+authors:
+- name: TextAgent_1.0
+  contact: ''
+language:
+  name: python
+  runtime: python>=3.8
+entrypoint:
+  kind: inline
+  symbol: truncate_text
+  code: "from typing import Tuple\n\ndef truncate_text(\n    text: str, \n    max_length: int, \n    suffix:\
+    \ str = '...',\n    break_words: bool = False\n) -> Tuple[str, bool, int]:\n    \"\"\"\n    智能截断长文本。\n\
+    \    \"\"\"\n    if not text:\n        return '', False, 0\n    \n    original_length = len(text)\n\
+    \    \n    if original_length <= max_length:\n        return text, False, original_length\n    \n\
+    \    if break_words:\n        # 简单截断\n        truncated = text[:max_length - len(suffix)] + suffix\n\
+    \        return truncated, True, original_length\n    \n    # 智能截断：在单词边界截断\n    truncated = text[:max_length\
+    \ - len(suffix)]\n    \n    # 找到最后一个单词边界\n    last_space = truncated.rfind(' ')\n    if last_space\
+    \ > 0:\n        truncated = truncated[:last_space]\n    \n    truncated = truncated.strip() + suffix\n\
+    \    return truncated, True, original_length"
+signature:
+  inputs:
+    text:
+      type: str
+      required: true
+      description: 原始文本
+    max_length:
+      type: int
+      required: true
+      description: 最大长度（字符数）
+    suffix:
+      type: str
+      required: false
+      description: 截断后的后缀
+      default: '...'
+    break_words:
+      type: bool
+      required: false
+      description: 是否允许在单词中间截断
+      default: false
+  outputs:
+    truncated:
+      type: str
+      description: 截断后的文本
+    was_truncated:
+      type: bool
+      description: 是否发生了截断
+    original_length:
+      type: int
+      description: 原始文本长度
+semantics:
+  deterministic: true
+  side_effects:
+  - none
+  security:
+    sandbox_required: false
+    data_sensitivity: low
+tests:
+  framework: builtin
+  cases:
+  - name: no_truncation_needed
+    input:
+      text: 短文本
+      max_length: 100
+      suffix: '...'
+      break_words: false
+    expect:
+      truncated: 短文本
+      was_truncated: false
+      original_length: 3
+  - name: truncate_with_word_boundary
+    input:
+      text: This is a very long sentence
+      max_length: 15
+      suffix: '...'
+      break_words: false
+    expect:
+      truncated: This is a...
+      was_truncated: true
+      original_length: 28
+  - name: truncate_break_words
+    input:
+      text: Supercalifragilistic
+      max_length: 10
+      suffix: '...'
+      break_words: true
+    expect:
+      truncated: Superca...
+      was_truncated: true
+      original_length: 20
+  - name: chinese_text
+    input:
+      text: 这是一个很长的中文句子，需要被截断
+      max_length: 15
+      suffix: '...'
+      break_words: false
+    expect:
+      truncated: 这是一个很长的中文...
+      was_truncated: true
+      original_length: 19
+  - name: empty_text
+    input:
+      text: ''
+      max_length: 10
+      suffix: '...'
+      break_words: false
+    expect:
+      truncated: ''
+      was_truncated: false
+      original_length: 0
+tags:
+- text
+- truncate
+- string
+- format
+quality:
+  maturity: stable
+provenance:
+  created_at: '2026-02-01T08:40:00Z'
+  updated_at: '2026-02-01T08:40:00Z'
+  source:
+    kind: manual

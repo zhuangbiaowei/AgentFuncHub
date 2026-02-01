@@ -1,0 +1,111 @@
+spec_version: '0.1'
+id: 007.id.card.validator
+version: 1.0.0
+name: 中国身份证验证器
+description: 验证中国大陆身份证号码格式，支持 15 位和 18 位身份证，包括校验码验证。
+license: MIT
+authors:
+- name: ValidationAgent_1.0
+  contact: ''
+language:
+  name: python
+  runtime: python>=3.8
+entrypoint:
+  kind: inline
+  symbol: validate_id_card_cn
+  code: "import re\nfrom datetime import datetime\nfrom typing import Tuple, Dict, Any\n\ndef validate_id_card_cn(id_card:\
+    \ str) -> Tuple[bool, str, Dict[str, Any]]:\n    \"\"\"\n    验证中国大陆身份证号码。\n    \"\"\"\n    if not\
+    \ id_card:\n        return False, 'invalid', {}\n    \n    id_card = str(id_card).strip().upper()\n\
+    \    \n    # 基本格式检查\n    if len(id_card) == 15:\n        pattern = r'^[1-9]\\d{14}$'\n        if not\
+    \ re.match(pattern, id_card):\n            return False, 'invalid', {}\n        return True, '15位',\
+    \ _parse_15(id_card)\n    \n    elif len(id_card) == 18:\n        pattern = r'^[1-9]\\d{16}[\\dX]$'\n\
+    \        if not re.match(pattern, id_card):\n            return False, 'invalid', {}\n        \n \
+    \       # 校验码验证\n        if not _check_18_digit(id_card):\n            return False, 'invalid', {}\n\
+    \        \n        return True, '18位', _parse_18(id_card)\n    \n    return False, 'invalid', {}\n\
+    \ndef _check_18_digit(id_card: str) -> bool:\n    \"\"\"验证18位身份证校验码\"\"\"\n    weights = [7, 9, 10,\
+    \ 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2]\n    check_codes = '10X98765432'\n    \n    sum_val =\
+    \ sum(int(id_card[i]) * weights[i] for i in range(17))\n    return check_codes[sum_val % 11] == id_card[17]\n\
+    \ndef _parse_15(id_card: str) -> Dict:\n    \"\"\"解析15位身份证\"\"\"\n    province_code = id_card[:2]\n\
+    \    year = '19' + id_card[6:8]\n    month = id_card[8:10]\n    day = id_card[10:12]\n    gender_code\
+    \ = int(id_card[14])\n    \n    return {\n        'province': _get_province(province_code),\n    \
+    \    'birth_date': f'{year}-{month}-{day}',\n        'gender': '男' if gender_code % 2 == 1 else '女'\n\
+    \    }\n\ndef _parse_18(id_card: str) -> Dict:\n    \"\"\"解析18位身份证\"\"\"\n    province_code = id_card[:2]\n\
+    \    year = id_card[6:10]\n    month = id_card[10:12]\n    day = id_card[12:14]\n    gender_code =\
+    \ int(id_card[16])\n    \n    return {\n        'province': _get_province(province_code),\n      \
+    \  'birth_date': f'{year}-{month}-{day}',\n        'gender': '男' if gender_code % 2 == 1 else '女'\n\
+    \    }\n\ndef _get_province(code: str) -> str:\n    \"\"\"根据代码获取省份\"\"\"\n    provinces = {\n    \
+    \    '11': '北京', '12': '天津', '13': '河北', '14': '山西', '15': '内蒙古',\n        '21': '辽宁', '22': '吉林',\
+    \ '23': '黑龙江',\n        '31': '上海', '32': '江苏', '33': '浙江', '34': '安徽', '35': '福建',\n        '36':\
+    \ '江西', '37': '山东',\n        '41': '河南', '42': '湖北', '43': '湖南', '44': '广东', '45': '广西',\n       \
+    \ '46': '海南',\n        '50': '重庆', '51': '四川', '52': '贵州', '53': '云南', '54': '西藏',\n        '61':\
+    \ '陕西', '62': '甘肃', '63': '青海', '64': '宁夏', '65': '新疆'\n    }\n    return provinces.get(code, '未知')"
+signature:
+  inputs:
+    id_card:
+      type: str
+      required: true
+      description: 身份证号码
+  outputs:
+    is_valid:
+      type: bool
+      description: 是否有效
+    type:
+      type: str
+      description: 身份证类型（15位/18位）
+    info:
+      type: dict
+      description: 解析出的信息（省份、出生日期、性别）
+semantics:
+  deterministic: true
+  side_effects:
+  - none
+  security:
+    sandbox_required: false
+    data_sensitivity: medium
+tests:
+  framework: builtin
+  cases:
+  - name: valid_18_id
+    input:
+      id_card: '110101199003077513'
+    expect:
+      is_valid: true
+      type: 18位
+      info:
+        province: 北京
+        gender: 男
+  - name: valid_15_id
+    input:
+      id_card: '110101900307751'
+    expect:
+      is_valid: true
+      type: 15位
+      info:
+        province: 北京
+        gender: 男
+  - name: invalid_checksum
+    input:
+      id_card: 11010119900307751X
+    expect:
+      is_valid: false
+      type: invalid
+      info: {}
+  - name: wrong_length
+    input:
+      id_card: '123456'
+    expect:
+      is_valid: false
+      type: invalid
+      info: {}
+tags:
+- id_card
+- validation
+- china
+- identity
+quality:
+  maturity: stable
+provenance:
+  created_at: '2026-02-01T09:00:00Z'
+  updated_at: '2026-02-01T09:00:00Z'
+  source:
+    kind: manual

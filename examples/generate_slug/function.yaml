@@ -1,0 +1,125 @@
+spec_version: "0.1"
+
+id: "text.slug.generate"
+version: "1.0.0"
+name: "URL Slug Generator"
+description: "Convert any string to URL-friendly slug format; supports multilingual (including Chinese) and custom separators."
+
+license: "MIT"
+authors:
+  - name: "TextAgent_1.0"
+
+language:
+  name: "python"
+  runtime: "python>=3.8"
+
+entrypoint:
+  kind: "inline"
+  symbol: "generate_slug"
+  code: |
+    import re
+    import unicodedata
+    from typing import Tuple
+    
+    def generate_slug(text: str, separator: str = '-', max_length: int = 0, allow_unicode: bool = False) -> Tuple[str, bool, int]:
+        if not text:
+            return '', False, 0
+        original_length = len(text)
+        text = unicodedata.normalize('NFKC', text)
+        if not allow_unicode:
+            text = text.encode('ascii', 'ignore').decode('ascii')
+        text = text.lower()
+        text = re.sub(r'[^\w\s-]', '', text)
+        text = re.sub(r'[-\s]+', separator, text)
+        text = text.strip(separator)
+        if max_length > 0 and len(text) > max_length:
+            text = text[:max_length].rsplit(separator, 1)[0]
+        was_truncated = len(text) < original_length
+        return text, was_truncated, original_length
+
+signature:
+  inputs:
+    text:
+      type: "string"
+      required: true
+      description: "Original text to convert"
+    separator:
+      type: "string"
+      required: false
+      default: "-"
+      description: "Separator between words"
+    max_length:
+      type: "integer"
+      required: false
+      default: 0
+      constraints:
+        min: 0
+        max: 500
+      description: "Maximum length (0 = unlimited)"
+    allow_unicode:
+      type: "boolean"
+      required: false
+      default: false
+      description: "Keep Unicode characters (e.g., Chinese)"
+  outputs:
+    slug:
+      type: "string"
+      description: "Generated URL-friendly string"
+    was_truncated:
+      type: "boolean"
+      description: "Whether truncation occurred"
+    original_length:
+      type: "integer"
+      description: "Original text length"
+
+semantics:
+  deterministic: true
+  side_effects: ["none"]
+  purity: "pure"
+  concurrency:
+    thread_safe: true
+    reentrant: true
+  security:
+    sandbox_required: false
+    data_sensitivity: "low"
+
+tests:
+  framework: "builtin"
+  cases:
+    - name: "simple english"
+      input:
+        text: "Hello World"
+        separator: "-"
+        max_length: 0
+        allow_unicode: false
+      expect:
+        slug: "hello-world"
+    - name: "chinese with unicode"
+      input:
+        text: "你好世界"
+        allow_unicode: true
+      expect:
+        slug: "你好世界"
+    - name: "chinese to ascii"
+      input:
+        text: "你好世界"
+        allow_unicode: false
+      expect:
+        slug: ""
+    - name: "max length truncation"
+      input:
+        text: "this is a very long title"
+        max_length: 15
+      expect:
+        slug: "this-is-a-very"
+
+tags: ["text", "url", "slug", "string", "format", "unicode"]
+
+quality:
+  maturity: "stable"
+
+provenance:
+  created_at: "2026-02-01"
+  updated_at: "2026-02-01"
+  source:
+    kind: "manual"

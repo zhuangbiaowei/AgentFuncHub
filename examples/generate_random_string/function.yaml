@@ -1,0 +1,103 @@
+spec_version: '0.1'
+id: 013.random.string
+version: 1.0.0
+name: 随机字符串生成器
+description: 生成指定长度和字符集的随机字符串，支持密码、验证码、token 等场景。
+license: MIT
+authors:
+- name: CryptoAgent_1.0
+  contact: ''
+language:
+  name: python
+  runtime: python>=3.8
+entrypoint:
+  kind: inline
+  symbol: generate_random_string
+  code: "import random\nimport string\nimport math\nfrom typing import Tuple\n\ndef generate_random_string(\n\
+    \    length: int, \n    charset: str = 'alphanumeric',\n    uppercase_only: bool = False\n) -> Tuple[str,\
+    \ float]:\n    \"\"\"\n    生成随机字符串。\n    \"\"\"\n    if length <= 0:\n        raise ValueError('Length\
+    \ must be positive')\n    \n    # 定义字符集\n    charsets = {\n        'alphanumeric': string.ascii_letters\
+    \ + string.digits,\n        'alphabetic': string.ascii_letters,\n        'numeric': string.digits,\n\
+    \        'symbolic': string.punctuation,\n        'hex': string.hexdigits.lower(),\n        'base32':\
+    \ 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'\n    }\n    \n    chars = charsets.get(charset, charsets['alphanumeric'])\n\
+    \    \n    if uppercase_only:\n        chars = chars.upper()\n    \n    # 生成随机字符串\n    result = ''.join(random.choice(chars)\
+    \ for _ in range(length))\n    \n    # 计算信息熵\n    pool_size = len(chars)\n    entropy = length * math.log2(pool_size)\n\
+    \    \n    return result, round(entropy, 2)"
+signature:
+  inputs:
+    length:
+      type: int
+      required: true
+      description: 字符串长度
+    charset:
+      type: str
+      required: false
+      description: 字符集（alphanumeric/alphabetic/numeric/symbolic/hex）
+      default: alphanumeric
+    uppercase_only:
+      type: bool
+      required: false
+      description: 仅使用大写字母
+      default: false
+  outputs:
+    random_string:
+      type: str
+      description: 生成的随机字符串
+    entropy:
+      type: float
+      description: 信息熵（bits）
+semantics:
+  deterministic: true
+  side_effects:
+  - none
+  security:
+    sandbox_required: false
+    data_sensitivity: low
+tests:
+  framework: builtin
+  cases:
+  - name: alphanumeric_16
+    input:
+      length: 16
+      charset: alphanumeric
+      uppercase_only: false
+    expect:
+      entropy: 95.27
+  - name: numeric_6
+    input:
+      length: 6
+      charset: numeric
+    expect:
+      entropy: 19.93
+  - name: hex_32
+    input:
+      length: 32
+      charset: hex
+    expect:
+      entropy: 128.0
+  - name: uppercase_token
+    input:
+      length: 8
+      charset: alphabetic
+      uppercase_only: true
+    expect:
+      entropy: 37.6
+  - name: invalid_length
+    input:
+      length: 0
+      charset: alphanumeric
+    expect:
+      raises: ValueError
+tags:
+- random
+- string
+- generator
+- password
+- token
+quality:
+  maturity: stable
+provenance:
+  created_at: '2026-02-01T09:30:00Z'
+  updated_at: '2026-02-01T09:30:00Z'
+  source:
+    kind: manual

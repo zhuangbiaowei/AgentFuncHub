@@ -1,0 +1,127 @@
+spec_version: '0.1'
+id: 004.ip.validator
+version: 1.0.0
+name: IP 地址验证器
+description: 验证 IPv4 和 IPv6 地址格式，支持检查是否为私有地址、保留地址或公网地址。
+license: MIT
+authors:
+- name: NetAgent_1.0
+  contact: ''
+language:
+  name: python
+  runtime: python>=3.8
+entrypoint:
+  kind: inline
+  symbol: validate_ip_address
+  code: "import ipaddress\nfrom typing import Tuple\n\ndef validate_ip_address(ip: str, allow_private:\
+    \ bool = True) -> Tuple[bool, int, bool, str]:\n    \"\"\"\n    验证 IP 地址并返回详细信息。\n    \"\"\"\n   \
+    \ if not ip or not isinstance(ip, str):\n        return False, 0, False, 'invalid'\n    \n    try:\n\
+    \        # 尝试 IPv4\n        addr = ipaddress.ip_address(ip)\n        version = addr.version\n    \
+    \    is_private = addr.is_private\n        \n        # 确定类型\n        if addr.is_loopback:\n      \
+    \      ip_type = 'loopback'\n        elif addr.is_multicast:\n            ip_type = 'multicast'\n\
+    \        elif addr.is_reserved:\n            ip_type = 'reserved'\n        elif addr.is_private:\n\
+    \            ip_type = 'private'\n        else:\n            ip_type = 'public'\n        \n      \
+    \  # 检查是否允许私有地址\n        if not allow_private and is_private:\n            return False, version,\
+    \ is_private, ip_type\n        \n        return True, version, is_private, ip_type\n        \n   \
+    \ except ValueError:\n        return False, 0, False, 'invalid'"
+signature:
+  inputs:
+    ip:
+      type: str
+      required: true
+      description: 待验证的 IP 地址
+    allow_private:
+      type: bool
+      required: false
+      description: 是否允许私有地址
+      default: true
+  outputs:
+    is_valid:
+      type: bool
+      description: 是否为有效 IP 地址
+    version:
+      type: int
+      description: IP 版本（4 或 6），无效则为 0
+    is_private:
+      type: bool
+      description: 是否为私有地址
+    type:
+      type: str
+      description: 地址类型（public/private/loopback/multicast/reserved）
+semantics:
+  deterministic: true
+  side_effects:
+  - none
+  security:
+    sandbox_required: false
+    data_sensitivity: low
+tests:
+  framework: builtin
+  cases:
+  - name: valid_ipv4
+    input:
+      ip: 192.168.1.1
+      allow_private: true
+    expect:
+      is_valid: true
+      version: 4
+      is_private: true
+      type: private
+  - name: public_ipv4
+    input:
+      ip: 8.8.8.8
+      allow_private: true
+    expect:
+      is_valid: true
+      version: 4
+      is_private: false
+      type: public
+  - name: valid_ipv6
+    input:
+      ip: 2001:0db8:85a3:0000:0000:8a2e:0370:7334
+      allow_private: true
+    expect:
+      is_valid: true
+      version: 6
+      is_private: false
+      type: public
+  - name: loopback
+    input:
+      ip: 127.0.0.1
+      allow_private: true
+    expect:
+      is_valid: true
+      version: 4
+      is_private: true
+      type: loopback
+  - name: invalid_ip
+    input:
+      ip: 256.1.1.1
+      allow_private: true
+    expect:
+      is_valid: false
+      version: 0
+      is_private: false
+      type: invalid
+  - name: reject_private
+    input:
+      ip: 192.168.1.1
+      allow_private: false
+    expect:
+      is_valid: false
+      version: 4
+      is_private: true
+      type: private
+tags:
+- ip
+- validation
+- network
+- ipv4
+- ipv6
+quality:
+  maturity: stable
+provenance:
+  created_at: '2026-02-01T08:35:00Z'
+  updated_at: '2026-02-01T08:35:00Z'
+  source:
+    kind: manual

@@ -1,0 +1,98 @@
+spec_version: '0.1'
+id: 025.keywords.extract
+version: 1.0.0
+name: 关键词提取器
+description: 从文本中提取关键词，支持中文和英文，基于词频和位置权重。
+license: MIT
+authors:
+- name: NLPAgent_1.0
+  contact: ''
+language:
+  name: python
+  runtime: python>=3.8
+entrypoint:
+  kind: inline
+  symbol: extract_keywords
+  code: "import re\nfrom collections import Counter\nfrom typing import List, Tuple, Dict\n\ndef extract_keywords(\n\
+    \    text: str, \n    top_k: int = 5,\n    min_length: int = 2\n) -> Tuple[List[Dict], int]:\n   \
+    \ \"\"\"\n    提取关键词。\n    \"\"\"\n    if not text:\n        return [], 0\n    \n    # 英文分词\n    english_words\
+    \ = re.findall(r'\\b[a-zA-Z]+\\b', text.lower())\n    \n    # 中文分词（简单实现：连续中文字符）\n    chinese_chars\
+    \ = re.findall(r'[\\u4e00-\\u9fa5]+', text)\n    chinese_words = []\n    for chars in chinese_chars:\n\
+    \        # 简单的2-4字词切分\n        for i in range(len(chars) - 1):\n            for j in range(2, min(5,\
+    \ len(chars) - i + 1)):\n                chinese_words.append(chars[i:i+j])\n    \n    # 停用词\n   \
+    \ stopwords = set(['the', 'is', 'at', 'of', 'on', 'and', 'a', 'to', 'in', '的', '是', '在', '和', '了',\
+    \ '有'})\n    \n    # 合并并过滤\n    all_words = [w for w in english_words + chinese_words if len(w) >=\
+    \ min_length and w not in stopwords]\n    \n    # 统计词频\n    word_counts = Counter(all_words)\n   \
+    \ total_words = len(all_words)\n    \n    # 提取 top_k\n    keywords = [\n        {'word': word, 'count':\
+    \ count, 'weight': round(count / max(total_words, 1), 4)}\n        for word, count in word_counts.most_common(top_k)\n\
+    \    ]\n    \n    return keywords, total_words"
+signature:
+  inputs:
+    text:
+      type: str
+      required: true
+      description: 输入文本
+    top_k:
+      type: int
+      required: false
+      description: 返回关键词数量
+      default: 5
+    min_length:
+      type: int
+      required: false
+      description: 最小词长度
+      default: 2
+  outputs:
+    keywords:
+      type: list
+      description: 关键词列表（带权重）
+    total_words:
+      type: int
+      description: 总词数
+semantics:
+  deterministic: true
+  side_effects:
+  - none
+  security:
+    sandbox_required: false
+    data_sensitivity: low
+tests:
+  framework: builtin
+  cases:
+  - name: english_text
+    input:
+      text: Machine learning is a subset of artificial intelligence. Machine learning algorithms build
+        models based on sample data.
+      top_k: 3
+    expect:
+      total_words: 10
+  - name: chinese_text
+    input:
+      text: 人工智能是计算机科学的一个重要分支。人工智能的研究包括机器学习、计算机视觉等领域。
+      top_k: 5
+    expect:
+      total_words: 14
+  - name: mixed_text
+    input:
+      text: Python 是一种强大的 programming language。Python 广泛应用于 data science。
+      top_k: 3
+    expect:
+      total_words: 6
+  - name: empty_text
+    input:
+      text: ''
+    expect:
+      keywords: []
+      total_words: 0
+tags:
+- nlp
+- keywords
+- extract
+- text
+quality:
+  maturity: stable
+provenance:
+  created_at: '2026-02-01T10:30:00Z'
+  updated_at: '2026-02-01T10:30:00Z'
+  source:
+    kind: manual

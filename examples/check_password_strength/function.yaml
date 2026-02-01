@@ -1,0 +1,142 @@
+spec_version: '0.1'
+id: 010.password.strength
+version: 1.0.0
+name: 密码强度检查器
+description: 评估密码强度，提供改进建议，支持自定义策略（最小长度、复杂度要求等）。
+license: MIT
+authors:
+- name: SecurityAgent_1.0
+  contact: ''
+language:
+  name: python
+  runtime: python>=3.8
+entrypoint:
+  kind: inline
+  symbol: check_password_strength
+  code: "import re\nfrom typing import Tuple, List, Dict\n\ndef check_password_strength(\n    password:\
+    \ str,\n    min_length: int = 8,\n    require_uppercase: bool = True,\n    require_lowercase: bool\
+    \ = True,\n    require_digits: bool = True,\n    require_special: bool = True\n) -> Tuple[int, str,\
+    \ bool, List[str], Dict[str, bool]]:\n    \"\"\"\n    检查密码强度。\n    \"\"\"\n    if not password:\n\
+    \        return 0, 'very_weak', False, ['Password cannot be empty'], {}\n    \n    suggestions = []\n\
+    \    checks = {\n        'length': len(password) >= min_length,\n        'uppercase': bool(re.search(r'[A-Z]',\
+    \ password)),\n        'lowercase': bool(re.search(r'[a-z]', password)),\n        'digits': bool(re.search(r'\\\
+    d', password)),\n        'special': bool(re.search(r'[!@#$%^&*(),.?\":{}|<>]', password))\n    }\n\
+    \    \n    # 计算分数\n    score = 0\n    \n    # 长度分数（最高40分）\n    length = len(password)\n    if length\
+    \ >= min_length:\n        score += 20\n    if length >= min_length + 4:\n        score += 10\n   \
+    \ if length >= min_length + 8:\n        score += 10\n    else:\n        suggestions.append(f'Increase\
+    \ length to at least {min_length} characters')\n    \n    # 复杂度分数（每种类型10分）\n    if checks['lowercase']:\n\
+    \        score += 10\n    elif require_lowercase:\n        suggestions.append('Add lowercase letters')\n\
+    \    \n    if checks['uppercase']:\n        score += 10\n    elif require_uppercase:\n        suggestions.append('Add\
+    \ uppercase letters')\n    \n    if checks['digits']:\n        score += 10\n    elif require_digits:\n\
+    \        suggestions.append('Add numbers')\n    \n    if checks['special']:\n        score += 10\n\
+    \    elif require_special:\n        suggestions.append('Add special characters (!@#$%^&*)')\n    \n\
+    \    # 额外分数\n    if length > 12:\n        score += 10\n    if len(set(password)) > len(password) *\
+    \ 0.7:  # 高熵值\n        score += 10\n    \n    score = min(score, 100)\n    \n    # 确定强度等级\n    if\
+    \ score >= 90:\n        strength = 'very_strong'\n    elif score >= 70:\n        strength = 'strong'\n\
+    \    elif score >= 50:\n        strength = 'medium'\n    elif score >= 30:\n        strength = 'weak'\n\
+    \    else:\n        strength = 'very_weak'\n    \n    # 检查是否通过策略\n    passed = (\n        checks['length']\
+    \ and\n        (not require_uppercase or checks['uppercase']) and\n        (not require_lowercase\
+    \ or checks['lowercase']) and\n        (not require_digits or checks['digits']) and\n        (not\
+    \ require_special or checks['special'])\n    )\n    \n    return score, strength, passed, suggestions,\
+    \ checks"
+signature:
+  inputs:
+    password:
+      type: str
+      required: true
+      description: 待检查的密码
+    min_length:
+      type: int
+      required: false
+      description: 最小长度
+      default: 8
+    require_uppercase:
+      type: bool
+      required: false
+      description: 是否要求大写字母
+      default: true
+    require_lowercase:
+      type: bool
+      required: false
+      description: 是否要求小写字母
+      default: true
+    require_digits:
+      type: bool
+      required: false
+      description: 是否要求数字
+      default: true
+    require_special:
+      type: bool
+      required: false
+      description: 是否要求特殊字符
+      default: true
+  outputs:
+    score:
+      type: int
+      description: 强度分数（0-100）
+    strength:
+      type: str
+      description: 强度等级（very_weak/weak/medium/strong/very_strong）
+    passed:
+      type: bool
+      description: 是否通过策略要求
+    suggestions:
+      type: list
+      description: 改进建议列表
+    details:
+      type: dict
+      description: 详细检查项
+semantics:
+  deterministic: true
+  side_effects:
+  - none
+  security:
+    sandbox_required: false
+    data_sensitivity: medium
+tests:
+  framework: builtin
+  cases:
+  - name: very_strong_password
+    input:
+      password: MyP@ssw0rd!2024
+      min_length: 8
+    expect:
+      strength: very_strong
+      passed: true
+  - name: weak_password
+    input:
+      password: '123456'
+      min_length: 8
+    expect:
+      strength: very_weak
+      passed: false
+  - name: no_special_chars
+    input:
+      password: Password123
+      require_special: true
+    expect:
+      passed: false
+  - name: too_short
+    input:
+      password: Abc1!
+      min_length: 8
+    expect:
+      passed: false
+  - name: empty_password
+    input:
+      password: ''
+    expect:
+      strength: very_weak
+      passed: false
+tags:
+- password
+- security
+- validation
+- strength
+quality:
+  maturity: stable
+provenance:
+  created_at: '2026-02-01T09:15:00Z'
+  updated_at: '2026-02-01T09:15:00Z'
+  source:
+    kind: manual

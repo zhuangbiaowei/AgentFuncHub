@@ -1,0 +1,153 @@
+spec_version: "0.1"
+
+id: "datetime.duration.format"
+version: "1.0.0"
+name: "Duration Formatter"
+description: "Convert seconds to human-readable duration string; supports multiple formats (English, Chinese, compact, ISO 8601)."
+
+license: "MIT"
+authors:
+  - name: "TimeAgent_1.0"
+
+language:
+  name: "python"
+  runtime: "python>=3.8"
+
+entrypoint:
+  kind: "inline"
+  symbol: "format_duration"
+  code: |
+    from typing import Tuple, Dict
+    
+    def format_duration(seconds: int, format: str = 'human', precision: int = 2) -> Tuple[str, Dict[str, int]]:
+        if seconds < 0:
+            raise ValueError('Seconds must be non-negative')
+        days = seconds // 86400
+        remaining = seconds % 86400
+        hours = remaining // 3600
+        remaining = remaining % 3600
+        minutes = remaining // 60
+        secs = remaining % 60
+        components = {'days': days, 'hours': hours, 'minutes': minutes, 'seconds': secs}
+        
+        if format == 'human':
+            parts = []
+            if days > 0:
+                parts.append(f'{days} day{"s" if days != 1 else ""}')
+            if hours > 0 and len(parts) < precision:
+                parts.append(f'{hours} hour{"s" if hours != 1 else ""}')
+            if minutes > 0 and len(parts) < precision:
+                parts.append(f'{minutes} min')
+            if secs > 0 and len(parts) < precision:
+                parts.append(f'{secs} sec')
+            formatted = ' '.join(parts) if parts else '0 sec'
+        elif format == 'cn':
+            parts = []
+            if days > 0:
+                parts.append(f'{days}天')
+            if hours > 0 and len(parts) < precision:
+                parts.append(f'{hours}小时')
+            if minutes > 0 and len(parts) < precision:
+                parts.append(f'{minutes}分钟')
+            if secs > 0 and len(parts) < precision:
+                parts.append(f'{secs}秒')
+            formatted = ''.join(parts) if parts else '0秒'
+        elif format == 'compact':
+            parts = []
+            if days > 0:
+                parts.append(f'{days}d')
+            if hours > 0 and len(parts) < precision:
+                parts.append(f'{hours}h')
+            if minutes > 0 and len(parts) < precision:
+                parts.append(f'{minutes}m')
+            if secs > 0 and len(parts) < precision:
+                parts.append(f'{secs}s')
+            formatted = ' '.join(parts) if parts else '0s'
+        elif format == 'iso':
+            parts = ['P']
+            if days > 0:
+                parts.append(f'{days}D')
+            if hours > 0 or minutes > 0 or secs > 0:
+                parts.append('T')
+                if hours > 0:
+                    parts.append(f'{hours}H')
+                if minutes > 0:
+                    parts.append(f'{minutes}M')
+                if secs > 0:
+                    parts.append(f'{secs}S')
+            formatted = ''.join(parts) if len(parts) > 1 else 'PT0S'
+        else:
+            raise ValueError(f'Unknown format: {format}')
+        return formatted, components
+
+signature:
+  inputs:
+    seconds:
+      type: "integer"
+      required: true
+      description: "Number of seconds"
+      constraints:
+        min: 0
+    format:
+      type: "string"
+      required: false
+      default: "human"
+      enum: ["human", "cn", "compact", "iso"]
+      description: "Output format"
+    precision:
+      type: "integer"
+      required: false
+      default: 2
+      description: "Maximum number of units to display"
+  outputs:
+    formatted:
+      type: "string"
+      description: "Formatted duration string"
+    components:
+      type: "object"
+      description: "Component values (days, hours, minutes, seconds)"
+
+semantics:
+  deterministic: true
+  side_effects: ["none"]
+  purity: "pure"
+  security:
+    sandbox_required: false
+    data_sensitivity: "low"
+
+tests:
+  framework: "builtin"
+  cases:
+    - name: "one hour"
+      input:
+        seconds: 3600
+        format: "human"
+      expect:
+        formatted: "1 hour"
+        components:
+          hours: 1
+    - name: "complex duration cn"
+      input:
+        seconds: 3661
+        format: "cn"
+        precision: 3
+      expect:
+        formatted: "1小时1分钟1秒"
+    - name: "compact format"
+      input:
+        seconds: 90061
+        format: "compact"
+        precision: 4
+      expect:
+        formatted: "1d 1h 1m 1s"
+
+tags: ["time", "duration", "format", "humanize", "localization"]
+
+quality:
+  maturity: "stable"
+
+provenance:
+  created_at: "2026-02-01"
+  updated_at: "2026-02-01"
+  source:
+    kind: "manual"

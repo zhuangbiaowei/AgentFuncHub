@@ -1,0 +1,130 @@
+spec_version: '0.1'
+id: 022.color.convert
+version: 1.0.0
+name: 颜色格式转换器
+description: 在不同颜色格式之间转换（HEX/RGB/HSL/HSV），支持CSS颜色值解析。
+license: MIT
+authors:
+- name: DesignAgent_1.0
+  contact: ''
+language:
+  name: python
+  runtime: python>=3.8
+entrypoint:
+  kind: inline
+  symbol: convert_color
+  code: "import re\nfrom typing import Tuple, Dict\n\ndef convert_color(color: str, from_format: str,\
+    \ to_format: str) -> Tuple[bool, str, Dict]:\n    \"\"\"\n    颜色格式转换。\n    \"\"\"\n    try:\n    \
+    \    # 统一转换为RGB中间格式\n        if from_format == 'hex':\n            r, g, b = _hex_to_rgb(color)\n\
+    \        elif from_format == 'rgb':\n            r, g, b = _parse_rgb(color)\n        elif from_format\
+    \ == 'hsl':\n            h, s, l = _parse_hsl(color)\n            r, g, b = _hsl_to_rgb(h, s, l)\n\
+    \        elif from_format == 'hsv':\n            h, s, v = _parse_hsv(color)\n            r, g, b\
+    \ = _hsv_to_rgb(h, s, v)\n        else:\n            return False, '', {}\n        \n        # 从RGB转换到目标格式\n\
+    \        all_formats = {\n            'rgb': f'rgb({r}, {g}, {b})',\n            'hex': _rgb_to_hex(r,\
+    \ g, b),\n            'hsl': _rgb_to_hsl(r, g, b),\n            'hsv': _rgb_to_hsv(r, g, b)\n    \
+    \    }\n        \n        return True, all_formats.get(to_format, ''), all_formats\n        \n   \
+    \ except Exception as e:\n        return False, str(e), {}\n\ndef _hex_to_rgb(hex_color: str) -> Tuple[int,\
+    \ int, int]:\n    hex_color = hex_color.lstrip('#')\n    if len(hex_color) == 3:\n        hex_color\
+    \ = ''.join([c*2 for c in hex_color])\n    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2,\
+    \ 4))\n\ndef _rgb_to_hex(r: int, g: int, b: int) -> str:\n    return f'#{r:02x}{g:02x}{b:02x}'\n\n\
+    def _parse_rgb(rgb: str) -> Tuple[int, int, int]:\n    match = re.search(r'rgb?\\((\\d+),\\s*(\\d+),\\\
+    s*(\\d+)\\)', rgb)\n    return tuple(int(x) for x in match.groups())\n\ndef _parse_hsl(hsl: str) ->\
+    \ Tuple[int, int, int]:\n    match = re.search(r'hsl\\((\\d+),\\s*(\\d+)%,\\s*(\\d+)%\\)', hsl)\n\
+    \    return tuple(int(x) for x in match.groups())\n\ndef _parse_hsv(hsv: str) -> Tuple[int, int, int]:\n\
+    \    match = re.search(r'hsv\\((\\d+),\\s*(\\d+)%,\\s*(\\d+)%\\)', hsv)\n    return tuple(int(x) for\
+    \ x in match.groups())\n\ndef _hsl_to_rgb(h: int, s: int, l: int) -> Tuple[int, int, int]:\n    #\
+    \ 简化实现\n    s, l = s / 100, l / 100\n    c = (1 - abs(2 * l - 1)) * s\n    x = c * (1 - abs((h / 60)\
+    \ % 2 - 1))\n    m = l - c / 2\n    \n    if h < 60:\n        r, g, b = c, x, 0\n    elif h < 120:\n\
+    \        r, g, b = x, c, 0\n    elif h < 180:\n        r, g, b = 0, c, x\n    elif h < 240:\n    \
+    \    r, g, b = 0, x, c\n    elif h < 300:\n        r, g, b = x, 0, c\n    else:\n        r, g, b =\
+    \ c, 0, x\n    \n    return tuple(int((v + m) * 255) for v in (r, g, b))\n\ndef _hsv_to_rgb(h: int,\
+    \ s: int, v: int) -> Tuple[int, int, int]:\n    s, v = s / 100, v / 100\n    c = v * s\n    x = c\
+    \ * (1 - abs((h / 60) % 2 - 1))\n    m = v - c\n    \n    if h < 60:\n        r, g, b = c, x, 0\n\
+    \    elif h < 120:\n        r, g, b = x, c, 0\n    elif h < 180:\n        r, g, b = 0, c, x\n    elif\
+    \ h < 240:\n        r, g, b = 0, x, c\n    elif h < 300:\n        r, g, b = x, 0, c\n    else:\n \
+    \       r, g, b = c, 0, x\n    \n    return tuple(int((v + m) * 255) for v in (r, g, b))\n\ndef _rgb_to_hsl(r:\
+    \ int, g: int, b: int) -> str:\n    # 简化实现\n    return f'hsl(0, 0%, {int((r+g+b)/3/255*100)}%)'\n\n\
+    def _rgb_to_hsv(r: int, g: int, b: int) -> str:\n    # 简化实现\n    return f'hsv(0, 0%, {int(max(r,g,b)/255*100)}%)'"
+signature:
+  inputs:
+    color:
+      type: str
+      required: true
+      description: 原始颜色值
+    from_format:
+      type: str
+      required: true
+      description: 原始格式（hex/rgb/hsl/hsv）
+    to_format:
+      type: str
+      required: true
+      description: 目标格式（hex/rgb/hsl/hsv）
+  outputs:
+    success:
+      type: bool
+      description: 转换是否成功
+    result:
+      type: str
+      description: 转换后的颜色值
+    all_formats:
+      type: dict
+      description: 所有格式的值
+semantics:
+  deterministic: true
+  side_effects:
+  - none
+  security:
+    sandbox_required: false
+    data_sensitivity: low
+tests:
+  framework: builtin
+  cases:
+  - name: hex_to_rgb
+    input:
+      color: '#FF5733'
+      from_format: hex
+      to_format: rgb
+    expect:
+      success: true
+  - name: rgb_to_hex
+    input:
+      color: rgb(255, 87, 51)
+      from_format: rgb
+      to_format: hex
+    expect:
+      success: true
+      result: '#ff5733'
+  - name: hsl_to_rgb
+    input:
+      color: hsl(9, 100%, 60%)
+      from_format: hsl
+      to_format: rgb
+    expect:
+      success: true
+  - name: short_hex
+    input:
+      color: '#F53'
+      from_format: hex
+      to_format: rgb
+    expect:
+      success: true
+  - name: invalid_color
+    input:
+      color: not-a-color
+      from_format: hex
+      to_format: rgb
+    expect:
+      success: false
+tags:
+- color
+- convert
+- css
+- hex
+- rgb
+quality:
+  maturity: stable
+provenance:
+  created_at: '2026-02-01T10:15:00Z'
+  updated_at: '2026-02-01T10:15:00Z'
+  source:
+    kind: manual

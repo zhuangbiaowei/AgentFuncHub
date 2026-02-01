@@ -1,0 +1,116 @@
+spec_version: '0.1'
+id: 012.hash.generator
+version: 1.0.0
+name: 哈希值生成器
+description: 生成数据的哈希值，支持 MD5、SHA1、SHA256 等多种算法，支持字符串和二进制数据。
+license: MIT
+authors:
+- name: CryptoAgent_1.0
+  contact: ''
+language:
+  name: python
+  runtime: python>=3.8
+entrypoint:
+  kind: inline
+  symbol: generate_hash
+  code: "import hashlib\nimport base64\nfrom typing import Tuple\n\ndef generate_hash(\n    data: str,\
+    \ \n    algorithm: str = 'sha256',\n    encoding: str = 'utf-8'\n) -> Tuple[str, str, int]:\n    \"\
+    \"\"\n    生成数据的哈希值。\n    \"\"\"\n    if not data:\n        return '', algorithm, 0\n    \n    # 根据编码转换数据\n\
+    \    if encoding == 'base64':\n        try:\n            data_bytes = base64.b64decode(data)\n   \
+    \     except:\n            data_bytes = data.encode('utf-8')\n    elif encoding == 'hex':\n      \
+    \  try:\n            data_bytes = bytes.fromhex(data)\n        except:\n            data_bytes = data.encode('utf-8')\n\
+    \    else:\n        data_bytes = data.encode('utf-8')\n    \n    # 选择算法\n    hash_obj = None\n   \
+    \ if algorithm == 'md5':\n        hash_obj = hashlib.md5(data_bytes)\n    elif algorithm == 'sha1':\n\
+    \        hash_obj = hashlib.sha1(data_bytes)\n    elif algorithm == 'sha256':\n        hash_obj =\
+    \ hashlib.sha256(data_bytes)\n    elif algorithm == 'sha512':\n        hash_obj = hashlib.sha512(data_bytes)\n\
+    \    else:\n        raise ValueError(f'Unsupported algorithm: {algorithm}')\n    \n    hash_value\
+    \ = hash_obj.hexdigest()\n    return hash_value, algorithm, len(hash_value)"
+signature:
+  inputs:
+    data:
+      type: str
+      required: true
+      description: 待哈希的数据
+    algorithm:
+      type: str
+      required: false
+      description: 哈希算法（md5/sha1/sha256/sha512）
+      default: sha256
+    encoding:
+      type: str
+      required: false
+      description: 数据编码（utf-8/base64/hex）
+      default: utf-8
+  outputs:
+    hash_value:
+      type: str
+      description: 哈希值（十六进制字符串）
+    algorithm:
+      type: str
+      description: 使用的算法
+    length:
+      type: int
+      description: 哈希值长度
+semantics:
+  deterministic: true
+  side_effects:
+  - none
+  security:
+    sandbox_required: false
+    data_sensitivity: low
+tests:
+  framework: builtin
+  cases:
+  - name: sha256_basic
+    input:
+      data: Hello, World!
+      algorithm: sha256
+      encoding: utf-8
+    expect:
+      hash_value: dffd6021bb2bd5b0af676290809ec3a53191dd81c7f70a4b28688a362182986f
+      algorithm: sha256
+      length: 64
+  - name: md5_basic
+    input:
+      data: Hello
+      algorithm: md5
+      encoding: utf-8
+    expect:
+      algorithm: md5
+      length: 32
+  - name: sha512_basic
+    input:
+      data: Test
+      algorithm: sha512
+      encoding: utf-8
+    expect:
+      algorithm: sha512
+      length: 128
+  - name: base64_input
+    input:
+      data: SGVsbG8=
+      algorithm: sha256
+      encoding: base64
+    expect:
+      algorithm: sha256
+  - name: chinese_text
+    input:
+      data: 你好世界
+      algorithm: sha256
+      encoding: utf-8
+    expect:
+      algorithm: sha256
+      length: 64
+tags:
+- hash
+- crypto
+- md5
+- sha
+- security
+quality:
+  maturity: stable
+provenance:
+  created_at: '2026-02-01T09:25:00Z'
+  updated_at: '2026-02-01T09:25:00Z'
+  source:
+    kind: manual

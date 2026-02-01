@@ -1,0 +1,118 @@
+spec_version: '0.1'
+id: 008.base64.converter
+version: 1.0.0
+name: Base64 编解码器
+description: Base64 编码和解码，支持标准 Base64 和 URL-safe Base64，处理文本和二进制数据。
+license: MIT
+authors:
+- name: CryptoAgent_1.0
+  contact: ''
+language:
+  name: python
+  runtime: python>=3.8
+entrypoint:
+  kind: inline
+  symbol: base64_convert
+  code: "import base64\nfrom typing import Tuple\n\ndef base64_convert(data: str, operation: str, url_safe:\
+    \ bool = False) -> Tuple[bool, str, str]:\n    \"\"\"\n    Base64 编码/解码。\n    \"\"\"\n    if not data:\n\
+    \        return False, '', 'Empty input'\n    \n    try:\n        if operation == 'encode':\n    \
+    \        # 编码\n            encoded = data.encode('utf-8')\n            if url_safe:\n            \
+    \    result = base64.urlsafe_b64encode(encoded).decode('utf-8')\n            else:\n             \
+    \   result = base64.b64encode(encoded).decode('utf-8')\n            return True, result, ''\n    \
+    \    \n        elif operation == 'decode':\n            # 解码\n            if url_safe:\n         \
+    \       decoded = base64.urlsafe_b64decode(data.encode('utf-8'))\n            else:\n            \
+    \    decoded = base64.b64decode(data.encode('utf-8'))\n            result = decoded.decode('utf-8')\n\
+    \            return True, result, ''\n        \n        else:\n            return False, '', f'Invalid\
+    \ operation: {operation}'\n    \n    except Exception as e:\n        return False, '', str(e)"
+signature:
+  inputs:
+    data:
+      type: str
+      required: true
+      description: 待编码/解码的数据
+    operation:
+      type: str
+      required: true
+      description: 操作类型（encode/decode）
+    url_safe:
+      type: bool
+      required: false
+      description: 是否使用 URL-safe 字符集
+      default: false
+  outputs:
+    success:
+      type: bool
+      description: 操作是否成功
+    result:
+      type: str
+      description: 编码/解码结果
+    error:
+      type: str
+      description: 错误信息（失败时）
+semantics:
+  deterministic: true
+  side_effects:
+  - none
+  security:
+    sandbox_required: false
+    data_sensitivity: low
+tests:
+  framework: builtin
+  cases:
+  - name: encode_text
+    input:
+      data: Hello, World!
+      operation: encode
+      url_safe: false
+    expect:
+      success: true
+      result: SGVsbG8sIFdvcmxkIQ==
+      error: ''
+  - name: decode_text
+    input:
+      data: SGVsbG8sIFdvcmxkIQ==
+      operation: decode
+      url_safe: false
+    expect:
+      success: true
+      result: Hello, World!
+      error: ''
+  - name: url_safe_encode
+    input:
+      data: a+b/c
+      operation: encode
+      url_safe: true
+    expect:
+      success: true
+      result: YS1iX2M=
+      error: ''
+  - name: invalid_decode
+    input:
+      data: NotBase64!!!
+      operation: decode
+      url_safe: false
+    expect:
+      success: false
+      result: ''
+      error: ''
+  - name: chinese_text
+    input:
+      data: 你好世界
+      operation: encode
+      url_safe: false
+    expect:
+      success: true
+      result: 5L2g5aW95LiW55WM
+      error: ''
+tags:
+- base64
+- encoding
+- crypto
+- conversion
+quality:
+  maturity: stable
+provenance:
+  created_at: '2026-02-01T09:05:00Z'
+  updated_at: '2026-02-01T09:05:00Z'
+  source:
+    kind: manual

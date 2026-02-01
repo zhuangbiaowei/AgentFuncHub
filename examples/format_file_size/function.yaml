@@ -1,0 +1,108 @@
+spec_version: '0.1'
+id: 020.file.size
+version: 1.0.0
+name: 文件大小格式化
+description: 将字节数转换为人类可读的文件大小字符串（KB/MB/GB等）。
+license: MIT
+authors:
+- name: UtilsAgent_1.0
+  contact: ''
+language:
+  name: python
+  runtime: python>=3.8
+entrypoint:
+  kind: inline
+  symbol: format_file_size
+  code: "from typing import Tuple\n\ndef format_file_size(\n    size_bytes: int, \n    precision: int\
+    \ = 2,\n    binary: bool = True\n) -> Tuple[str, str, float]:\n    \"\"\"\n    格式化文件大小。\n    \"\"\"\
+    \n    if size_bytes < 0:\n        raise ValueError('Size must be non-negative')\n    \n    if size_bytes\
+    \ == 0:\n        return '0 B', 'B', 0.0\n    \n    base = 1024 if binary else 1000\n    units = ['B',\
+    \ 'KB', 'MB', 'GB', 'TB', 'PB']\n    \n    size = float(size_bytes)\n    unit_index = 0\n    \n  \
+    \  while size >= base and unit_index < len(units) - 1:\n        size /= base\n        unit_index +=\
+    \ 1\n    \n    unit = units[unit_index]\n    formatted = f'{size:.{precision}f} {unit}'\n    \n  \
+    \  return formatted, unit, round(size, precision)"
+signature:
+  inputs:
+    size_bytes:
+      type: int
+      required: true
+      description: 字节数
+    precision:
+      type: int
+      required: false
+      description: 小数位数
+      default: 2
+    binary:
+      type: bool
+      required: false
+      description: 使用二进制单位（1024）
+      default: true
+  outputs:
+    formatted:
+      type: str
+      description: 格式化后的文件大小
+    unit:
+      type: str
+      description: 单位（B/KB/MB/GB/TB）
+    value:
+      type: float
+      description: 数值
+semantics:
+  deterministic: true
+  side_effects:
+  - none
+  security:
+    sandbox_required: false
+    data_sensitivity: low
+tests:
+  framework: builtin
+  cases:
+  - name: bytes
+    input:
+      size_bytes: 512
+      precision: 2
+      binary: true
+    expect:
+      formatted: 512.00 B
+      unit: B
+      value: 512.0
+  - name: kilobytes
+    input:
+      size_bytes: 1536
+      precision: 2
+    expect:
+      formatted: 1.50 KB
+      unit: KB
+  - name: megabytes
+    input:
+      size_bytes: 10485760
+      precision: 2
+    expect:
+      formatted: 10.00 MB
+      unit: MB
+  - name: gigabytes
+    input:
+      size_bytes: 1073741824
+      precision: 2
+    expect:
+      formatted: 1.00 GB
+      unit: GB
+  - name: decimal_units
+    input:
+      size_bytes: 1000
+      binary: false
+    expect:
+      formatted: 1.00 KB
+      unit: KB
+tags:
+- file
+- size
+- format
+- humanize
+quality:
+  maturity: stable
+provenance:
+  created_at: '2026-02-01T10:05:00Z'
+  updated_at: '2026-02-01T10:05:00Z'
+  source:
+    kind: manual

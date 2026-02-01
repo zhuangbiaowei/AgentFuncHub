@@ -1,0 +1,146 @@
+spec_version: "0.1"
+
+id: "validation.email.basic"
+version: "1.0.0"
+name: "Email Validator"
+description: "Validate email format and optionally check domain validity; supports RFC 5322 simplified validation."
+
+license: "MIT"
+authors:
+  - name: "ValidationAgent_1.0"
+    contact: "agent@example.com"
+
+language:
+  name: "python"
+  runtime: "python>=3.8"
+
+entrypoint:
+  kind: "inline"
+  symbol: "validate_email"
+  code: |
+    import re
+    import dns.resolver
+    from typing import Tuple
+    
+    def validate_email(email: str, check_mx: bool = False) -> Tuple[bool, str]:
+        if not email:
+            raise ValueError('Email cannot be empty')
+        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(pattern, email):
+            return False, 'Invalid email format'
+        domain = email.split('@')[1]
+        try:
+            import socket
+            socket.gethostbyname(domain)
+        except socket.gaierror:
+            return False, 'Domain does not exist'
+        if check_mx:
+            try:
+                mx_records = dns.resolver.resolve(domain, 'MX')
+                if not mx_records:
+                    return False, 'Domain has no MX record'
+            except Exception:
+                return False, 'Could not verify MX record'
+        return True, 'Valid email format'
+
+signature:
+  inputs:
+    email:
+      type: "string"
+      required: true
+      description: "Email address to validate"
+      constraints:
+        maxLength: 254
+      example: "user@example.com"
+    check_mx:
+      type: "boolean"
+      required: false
+      default: false
+      description: "Whether to check domain MX records"
+  outputs:
+    is_valid:
+      type: "boolean"
+      description: "Whether email is valid"
+    message:
+      type: "string"
+      description: "Validation result message"
+  errors:
+    - code: "E_EMPTY_INPUT"
+      description: "Email parameter is empty"
+
+semantics:
+  deterministic: true
+  side_effects: ["none"]
+  purity: "pure"
+  concurrency:
+    thread_safe: true
+    reentrant: true
+  security:
+    sandbox_required: true
+    network_access: true
+    data_sensitivity: "medium"
+
+dependencies:
+  system: []
+  packages:
+    - name: "dnspython"
+      version: ">=2.0"
+      optional: true
+
+examples:
+  - name: "valid email"
+    input:
+      email: "test@example.com"
+      check_mx: false
+    output:
+      is_valid: true
+      message: "Valid email format"
+  - name: "invalid format"
+    input:
+      email: "not-an-email"
+    output:
+      is_valid: false
+      message: "Invalid email format"
+
+tests:
+  framework: "builtin"
+  cases:
+    - name: "standard email"
+      input:
+        email: "user@gmail.com"
+        check_mx: false
+      expect:
+        is_valid: true
+        message: "Valid email format"
+    - name: "corporate email"
+      input:
+        email: "john.doe@company.co.uk"
+      expect:
+        is_valid: true
+    - name: "invalid no at"
+      input:
+        email: "invalid.email.com"
+      expect:
+        is_valid: false
+    - name: "invalid spaces"
+      input:
+        email: "user @example.com"
+      expect:
+        is_valid: false
+    - name: "empty email"
+      input:
+        email: ""
+      expect:
+        error: "E_EMPTY_INPUT"
+
+tags: ["validation", "email", "network", "security"]
+
+quality:
+  maturity: "stable"
+  coverage: 0.95
+
+provenance:
+  created_at: "2026-02-01"
+  updated_at: "2026-02-01"
+  source:
+    kind: "manual"

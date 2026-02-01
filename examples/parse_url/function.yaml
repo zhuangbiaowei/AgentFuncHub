@@ -1,0 +1,104 @@
+spec_version: '0.1'
+id: 015.url.parser
+version: 1.0.0
+name: URL 解析器
+description: 解析 URL 字符串，提取协议、域名、路径、查询参数等各个组成部分。
+license: MIT
+authors:
+- name: NetAgent_1.0
+  contact: ''
+language:
+  name: python
+  runtime: python>=3.8
+entrypoint:
+  kind: inline
+  symbol: parse_url
+  code: "from urllib.parse import urlparse, parse_qs, unquote\nfrom typing import Tuple, Dict, Any\n\n\
+    def parse_url(url: str, decode_params: bool = True) -> Tuple[bool, Dict[str, Any]]:\n    \"\"\"\n\
+    \    解析 URL。\n    \"\"\"\n    if not url:\n        return False, {}\n    \n    try:\n        parsed\
+    \ = urlparse(url)\n        \n        # 解析查询参数\n        query_params = parse_qs(parsed.query)\n   \
+    \     \n        if decode_params:\n            # 解码参数值\n            query_params = {\n           \
+    \     k: [unquote(v) for v in vals] \n                for k, vals in query_params.items()\n      \
+    \      }\n        \n        components = {\n            'scheme': parsed.scheme,\n            'netloc':\
+    \ parsed.netloc,\n            'hostname': parsed.hostname,\n            'port': parsed.port,\n   \
+    \         'path': parsed.path,\n            'params': parsed.params,\n            'query': parsed.query,\n\
+    \            'query_params': query_params,\n            'fragment': parsed.fragment,\n           \
+    \ 'username': parsed.username,\n            'password': parsed.password\n        }\n        \n   \
+    \     return True, components\n        \n    except Exception as e:\n        return False, {'error':\
+    \ str(e)}"
+signature:
+  inputs:
+    url:
+      type: str
+      required: true
+      description: URL 字符串
+    decode_params:
+      type: bool
+      required: false
+      description: 是否解码查询参数
+      default: true
+  outputs:
+    valid:
+      type: bool
+      description: URL 是否有效
+    components:
+      type: dict
+      description: URL 各个组成部分
+semantics:
+  deterministic: true
+  side_effects:
+  - none
+  security:
+    sandbox_required: false
+    data_sensitivity: low
+tests:
+  framework: builtin
+  cases:
+  - name: full_url
+    input:
+      url: https://example.com:8080/path?key=value&foo=bar#section
+      decode_params: true
+    expect:
+      valid: true
+  - name: simple_url
+    input:
+      url: https://example.com
+      decode_params: true
+    expect:
+      valid: true
+      components:
+        scheme: https
+        hostname: example.com
+  - name: url_with_auth
+    input:
+      url: https://user:pass@example.com
+      decode_params: true
+    expect:
+      valid: true
+      components:
+        username: user
+        password: pass
+  - name: encoded_params
+    input:
+      url: https://example.com?q=hello%20world
+      decode_params: true
+    expect:
+      valid: true
+  - name: invalid_url
+    input:
+      url: not a url
+      decode_params: true
+    expect:
+      valid: false
+tags:
+- url
+- parse
+- network
+- extract
+quality:
+  maturity: stable
+provenance:
+  created_at: '2026-02-01T09:40:00Z'
+  updated_at: '2026-02-01T09:40:00Z'
+  source:
+    kind: manual

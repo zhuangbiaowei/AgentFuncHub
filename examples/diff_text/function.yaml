@@ -1,0 +1,102 @@
+spec_version: '0.1'
+id: 026.diff.text
+version: 1.0.0
+name: 文本差异比较
+description: 比较两段文本的差异，生成统一的 diff 输出。
+license: MIT
+authors:
+- name: TextAgent_1.0
+  contact: ''
+language:
+  name: python
+  runtime: python>=3.8
+entrypoint:
+  kind: inline
+  symbol: diff_text
+  code: "import difflib\nfrom typing import Tuple, Dict\n\ndef diff_text(\n    old_text: str, \n    new_text:\
+    \ str,\n    format: str = 'unified'\n) -> Tuple[str, Dict]:\n    \"\"\"\n    文本差异比较。\n    \"\"\"\n\
+    \    old_lines = old_text.splitlines(keepends=True)\n    new_lines = new_text.splitlines(keepends=True)\n\
+    \    \n    # 确保每行有换行符\n    old_lines = [l if l.endswith('\\n') else l + '\\n' for l in old_lines]\n\
+    \    new_lines = [l if l.endswith('\\n') else l + '\\n' for l in new_lines]\n    \n    if format ==\
+    \ 'unified':\n        diff = list(difflib.unified_diff(old_lines, new_lines, lineterm=''))\n    elif\
+    \ format == 'context':\n        diff = list(difflib.context_diff(old_lines, new_lines, lineterm=''))\n\
+    \    else:\n        diff = []\n    \n    diff_output = ''.join(diff)\n    \n    # 统计变更\n    added\
+    \ = sum(1 for line in diff if line.startswith('+') and not line.startswith('+++'))\n    removed =\
+    \ sum(1 for line in diff if line.startswith('-') and not line.startswith('---'))\n    \n    changes\
+    \ = {\n        'added_lines': added,\n        'removed_lines': removed,\n        'total_changes':\
+    \ added + removed\n    }\n    \n    return diff_output, changes"
+signature:
+  inputs:
+    old_text:
+      type: str
+      required: true
+      description: 旧文本
+    new_text:
+      type: str
+      required: true
+      description: 新文本
+    format:
+      type: str
+      required: false
+      description: 输出格式（unified/context/side_by_side）
+      default: unified
+  outputs:
+    diff_output:
+      type: str
+      description: 差异输出
+    changes:
+      type: dict
+      description: 变更统计
+semantics:
+  deterministic: true
+  side_effects:
+  - none
+  security:
+    sandbox_required: false
+    data_sensitivity: low
+tests:
+  framework: builtin
+  cases:
+  - name: simple_diff
+    input:
+      old_text: line 1\nline 2
+      new_text: line 1\nline 3
+      format: unified
+    expect:
+      changes:
+        added_lines: 1
+        removed_lines: 1
+  - name: no_change
+    input:
+      old_text: same
+      new_text: same
+    expect:
+      changes:
+        added_lines: 0
+        removed_lines: 0
+  - name: added_lines
+    input:
+      old_text: line 1
+      new_text: line 1\nline 2
+    expect:
+      changes:
+        added_lines: 1
+  - name: removed_lines
+    input:
+      old_text: line 1\nline 2
+      new_text: line 1
+    expect:
+      changes:
+        removed_lines: 1
+tags:
+- diff
+- compare
+- text
+- version
+quality:
+  maturity: stable
+provenance:
+  created_at: '2026-02-01T10:35:00Z'
+  updated_at: '2026-02-01T10:35:00Z'
+  source:
+    kind: manual

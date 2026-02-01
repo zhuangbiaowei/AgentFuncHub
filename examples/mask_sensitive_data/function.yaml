@@ -1,0 +1,110 @@
+spec_version: '0.1'
+id: 021.masking
+version: 1.0.0
+name: 敏感数据脱敏
+description: 对敏感数据进行脱敏处理，支持手机号、邮箱、身份证号、银行卡号等。
+license: MIT
+authors:
+- name: SecurityAgent_1.0
+  contact: ''
+language:
+  name: python
+  runtime: python>=3.8
+entrypoint:
+  kind: inline
+  symbol: mask_sensitive_data
+  code: "from typing import Tuple\n\ndef mask_sensitive_data(\n    data: str, \n    data_type: str,\n\
+    \    mask_char: str = '*'\n) -> Tuple[str, bool]:\n    \"\"\"\n    敏感数据脱敏。\n    \"\"\"\n    if not\
+    \ data:\n        return '', False\n    \n    data = str(data).strip()\n    \n    if data_type == 'phone':\n\
+    \        # 手机号: 保留前3后4\n        if len(data) == 11:\n            return data[:3] + mask_char * 4 +\
+    \ data[-4:], True\n        return data, False\n    \n    elif data_type == 'email':\n        # 邮箱:\
+    \ 保留首字符和域名\n        if '@' in data:\n            local, domain = data.split('@')\n            if len(local)\
+    \ > 1:\n                masked_local = local[0] + mask_char * (len(local) - 1)\n                return\
+    \ masked_local + '@' + domain, True\n        return data, False\n    \n    elif data_type == 'id_card':\n\
+    \        # 身份证: 保留前6后4\n        if len(data) in [15, 18]:\n            return data[:6] + mask_char\
+    \ * (len(data) - 10) + data[-4:], True\n        return data, False\n    \n    elif data_type == 'bank_card':\n\
+    \        # 银行卡: 保留后4位\n        if len(data) >= 10:\n            return mask_char * (len(data) - 4)\
+    \ + data[-4:], True\n        return data, False\n    \n    elif data_type == 'generic':\n        #\
+    \ 通用: 保留首尾各2个字符\n        if len(data) <= 4:\n            return mask_char * len(data), True\n    \
+    \    return data[:2] + mask_char * (len(data) - 4) + data[-2:], True\n    \n    else:\n        return\
+    \ data, False"
+signature:
+  inputs:
+    data:
+      type: str
+      required: true
+      description: 原始数据
+    data_type:
+      type: str
+      required: true
+      description: 数据类型（phone/email/id_card/bank_card/generic）
+    mask_char:
+      type: str
+      required: false
+      description: 脱敏字符
+      default: '*'
+  outputs:
+    masked:
+      type: str
+      description: 脱敏后的数据
+    valid:
+      type: bool
+      description: 原始数据是否有效
+semantics:
+  deterministic: true
+  side_effects:
+  - none
+  security:
+    sandbox_required: false
+    data_sensitivity: low
+tests:
+  framework: builtin
+  cases:
+  - name: mask_phone
+    input:
+      data: '13812345678'
+      data_type: phone
+      mask_char: '*'
+    expect:
+      masked: 138****5678
+      valid: true
+  - name: mask_email
+    input:
+      data: user@example.com
+      data_type: email
+    expect:
+      masked: u***@example.com
+      valid: true
+  - name: mask_id_card
+    input:
+      data: '110101199003077513'
+      data_type: id_card
+    expect:
+      masked: 110101********7513
+      valid: true
+  - name: mask_bank_card
+    input:
+      data: '6222021234567890123'
+      data_type: bank_card
+    expect:
+      masked: '***************0123'
+      valid: true
+  - name: invalid_phone
+    input:
+      data: '123'
+      data_type: phone
+    expect:
+      masked: '123'
+      valid: false
+tags:
+- mask
+- sensitive
+- privacy
+- security
+quality:
+  maturity: stable
+provenance:
+  created_at: '2026-02-01T10:10:00Z'
+  updated_at: '2026-02-01T10:10:00Z'
+  source:
+    kind: manual

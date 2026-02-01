@@ -1,0 +1,103 @@
+spec_version: '0.1'
+id: 023.sentence.case
+version: 1.0.0
+name: 文本大小写转换
+description: 转换文本的大小写格式，支持驼峰、蛇形、短横线、帕斯卡等多种命名规范。
+license: MIT
+authors:
+- name: TextAgent_1.0
+  contact: ''
+language:
+  name: python
+  runtime: python>=3.8
+entrypoint:
+  kind: inline
+  symbol: convert_case
+  code: "import re\nfrom typing import Tuple, List\n\ndef convert_case(text: str, target_case: str) ->\
+    \ Tuple[str, List[str]]:\n    \"\"\"\n    文本大小写转换。\n    \"\"\"\n    if not text:\n        return '',\
+    \ []\n    \n    # 首先解析出所有单词\n    words = _extract_words(text)\n    \n    if not words:\n        return\
+    \ text, []\n    \n    # 转换为不同格式\n    if target_case == 'camel':\n        # camelCase: fooBarBaz\n\
+    \        result = words[0].lower() + ''.join(w.capitalize() for w in words[1:])\n    elif target_case\
+    \ == 'snake':\n        # snake_case: foo_bar_baz\n        result = '_'.join(w.lower() for w in words)\n\
+    \    elif target_case == 'kebab':\n        # kebab-case: foo-bar-baz\n        result = '-'.join(w.lower()\
+    \ for w in words)\n    elif target_case == 'pascal':\n        # PascalCase: FooBarBaz\n        result\
+    \ = ''.join(w.capitalize() for w in words)\n    elif target_case == 'constant':\n        # CONSTANT_CASE:\
+    \ FOO_BAR_BAZ\n        result = '_'.join(w.upper() for w in words)\n    elif target_case == 'sentence':\n\
+    \        # Sentence case: Foo bar baz\n        result = words[0].capitalize() + ' ' + ' '.join(w.lower()\
+    \ for w in words[1:])\n    elif target_case == 'title':\n        # Title Case: Foo Bar Baz\n     \
+    \   result = ' '.join(w.capitalize() for w in words)\n    else:\n        raise ValueError(f'Unknown\
+    \ case: {target_case}')\n    \n    return result, words\n\ndef _extract_words(text: str) -> List[str]:\n\
+    \    \"\"\"提取单词\"\"\"\n    # 处理驼峰\n    text = re.sub(r'([a-z])([A-Z])', r'\\1 \\2', text)\n    # 分割\n\
+    \    words = re.split(r'[_\\-\\s]+', text)\n    return [w.lower() for w in words if w]"
+signature:
+  inputs:
+    text:
+      type: str
+      required: true
+      description: 原始文本
+    target_case:
+      type: str
+      required: true
+      description: 目标格式（camel/snake/kebab/pascal/constant/sentence/title）
+  outputs:
+    converted:
+      type: str
+      description: 转换后的文本
+    original_words:
+      type: list
+      description: 解析出的单词列表
+semantics:
+  deterministic: true
+  side_effects:
+  - none
+  security:
+    sandbox_required: false
+    data_sensitivity: low
+tests:
+  framework: builtin
+  cases:
+  - name: to_camel
+    input:
+      text: hello_world
+      target_case: camel
+    expect:
+      converted: helloWorld
+      original_words:
+      - hello
+      - world
+  - name: to_snake
+    input:
+      text: helloWorld
+      target_case: snake
+    expect:
+      converted: hello_world
+  - name: to_kebab
+    input:
+      text: HelloWorld
+      target_case: kebab
+    expect:
+      converted: hello-world
+  - name: to_pascal
+    input:
+      text: hello-world
+      target_case: pascal
+    expect:
+      converted: HelloWorld
+  - name: to_constant
+    input:
+      text: helloWorld
+      target_case: constant
+    expect:
+      converted: HELLO_WORLD
+tags:
+- text
+- case
+- convert
+- naming
+quality:
+  maturity: stable
+provenance:
+  created_at: '2026-02-01T10:20:00Z'
+  updated_at: '2026-02-01T10:20:00Z'
+  source:
+    kind: manual
