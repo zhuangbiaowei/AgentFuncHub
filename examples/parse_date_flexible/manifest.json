@@ -1,0 +1,124 @@
+{
+  "function_id": "func-006-date-parser",
+  "name": "parse_date_flexible",
+  "display_name": "灵活日期解析器",
+  "description": "解析各种格式的日期字符串，支持自然语言（如"昨天"、"3天前"）、相对日期和多种格式。",
+  "language": "python",
+  "version": "1.0.0",
+  "signature": {
+    "inputs": [
+      {
+        "name": "date_string",
+        "type": "str",
+        "description": "日期字符串",
+        "required": true
+      },
+      {
+        "name": "base_date",
+        "type": "str",
+        "description": "基准日期（ISO格式），用于相对日期计算，默认为今天",
+        "required": false,
+        "default": null
+      },
+      {
+        "name": "output_format",
+        "type": "str",
+        "description": "输出格式（iso/timestamp/datetime）",
+        "required": false,
+        "default": "iso"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "success",
+        "type": "bool",
+        "description": "解析是否成功"
+      },
+      {
+        "name": "date",
+        "type": "str",
+        "description": "解析后的日期（按指定格式）"
+      },
+      {
+        "name": "original_format",
+        "type": "str",
+        "description": "检测到的原始格式类型"
+      }
+    ]
+  },
+  "code": {
+    "source": "from datetime import datetime, timedelta\nfrom typing import Tuple, Optional\nimport re\n\ndef parse_date_flexible(\n    date_string: str,\n    base_date: Optional[str] = None,\n    output_format: str = 'iso'\n) -> Tuple[bool, str, str]:\n    \"\"\"\n    灵活解析各种日期格式。\n    \"\"\"\n    if not date_string:\n        return False, '', 'invalid'\n    \n    date_string = date_string.strip().lower()\n    \n    # 确定基准日期\n    if base_date:\n        try:\n            now = datetime.fromisoformat(base_date.replace('Z', '+00:00'))\n        except:\n            now = datetime.now()\n    else:\n        now = datetime.now()\n    \n    result = None\n    detected_format = 'unknown'\n    \n    # 自然语言处理\n    if date_string in ['今天', 'today']:\n        result = now\n        detected_format = 'natural_today'\n    elif date_string in ['昨天', 'yesterday']:\n        result = now - timedelta(days=1)\n        detected_format = 'natural_yesterday'\n    elif date_string in ['明天', 'tomorrow']:\n        result = now + timedelta(days=1)\n        detected_format = 'natural_tomorrow'\n    elif re.match(r'(\\d+)天前', date_string):\n        days = int(re.search(r'(\\d+)', date_string).group(1))\n        result = now - timedelta(days=days)\n        detected_format = 'natural_relative_past'\n    elif re.match(r'(\\d+)天后', date_string):\n        days = int(re.search(r'(\\d+)', date_string).group(1))\n        result = now + timedelta(days=days)\n        detected_format = 'natural_relative_future'\n    \n    # 标准格式解析\n    if result is None:\n        formats = [\n            ('%Y-%m-%d', 'iso_date'),\n            ('%Y/%m/%d', 'slash_date'),\n            ('%d/%m/%Y', 'eu_date'),\n            ('%m/%d/%Y', 'us_date'),\n            ('%d-%m-%Y', 'eu_dash_date'),\n            ('%Y%m%d', 'compact_date'),\n            ('%Y-%m-%d %H:%M:%S', 'iso_datetime'),\n        ]\n        \n        for fmt, fmt_name in formats:\n            try:\n                result = datetime.strptime(date_string, fmt)\n                detected_format = fmt_name\n                break\n            except ValueError:\n                continue\n    \n    if result is None:\n        return False, '', 'invalid'\n    \n    # 格式化输出\n    if output_format == 'iso':\n        output = result.strftime('%Y-%m-%d')\n    elif output_format == 'timestamp':\n        output = str(int(result.timestamp()))\n    elif output_format == 'datetime':\n        output = result.isoformat()\n    else:\n        output = result.strftime('%Y-%m-%d')\n    \n    return True, output, detected_format",
+    "hash": "sha256:placeholder",
+    "line_count": 78,
+    "complexity": 6.0
+  },
+  "test_cases": [
+    {
+      "name": "iso_date",
+      "description": "ISO 格式日期",
+      "input": { "date_string": "2024-03-15", "base_date": null, "output_format": "iso" },
+      "expected": { "success": true, "date": "2024-03-15", "original_format": "iso_date" },
+      "tags": ["happy_path", "iso"]
+    },
+    {
+      "name": "natural_yesterday",
+      "description": "自然语言：昨天",
+      "input": { "date_string": "昨天", "base_date": "2024-03-15", "output_format": "iso" },
+      "expected": { "success": true, "date": "2024-03-14", "original_format": "natural_yesterday" },
+      "tags": ["natural_language", "chinese"]
+    },
+    {
+      "name": "relative_days_ago",
+      "description": "相对日期：3天前",
+      "input": { "date_string": "3天前", "base_date": "2024-03-15", "output_format": "iso" },
+      "expected": { "success": true, "date": "2024-03-12", "original_format": "natural_relative_past" },
+      "tags": ["natural_language", "relative"]
+    },
+    {
+      "name": "slash_format",
+      "description": "斜杠格式",
+      "input": { "date_string": "2024/03/15", "base_date": null, "output_format": "iso" },
+      "expected": { "success": true, "date": "2024-03-15", "original_format": "slash_date" },
+      "tags": ["format_variation"]
+    },
+    {
+      "name": "invalid_date",
+      "description": "无效日期",
+      "input": { "date_string": "不是日期", "base_date": null, "output_format": "iso" },
+      "expected": { "success": false, "date": "", "original_format": "invalid" },
+      "tags": ["validation", "error"]
+    }
+  ],
+  "dependencies": [
+    { "name": "datetime", "type": "builtin" },
+    { "name": "typing", "type": "builtin" },
+    { "name": "re", "type": "builtin" }
+  ],
+  "tags": ["date", "parser", "natural_language", "time"],
+  "categories": ["datetime"],
+  "usage_scenarios": [
+    "用户输入的日期解析",
+    "日志时间戳处理",
+    "自然语言任务理解"
+  ],
+  "performance": {
+    "time_complexity": "O(1)",
+    "benchmarks": [
+      { "dataset_size": "10000 dates", "avg_time_ms": 0.1, "memory_mb": 1 }
+    ]
+  },
+  "security": {
+    "sandbox_required": false,
+    "network_access": false,
+    "filesystem_access": false,
+    "risk_level": "low"
+  },
+  "author": {
+    "name": "TimeAgent_1.0",
+    "type": "agent",
+    "agent_id": "agent_demo_006"
+  },
+  "license": "MIT",
+  "created_at": "2026-02-01T08:45:00Z",
+  "updated_at": "2026-02-01T08:45:00Z"
+}
