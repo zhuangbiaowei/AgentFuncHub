@@ -539,6 +539,25 @@ async def get_languages():
     }
 
 
+# 导入并注册额外 API 模块
+try:
+    # 数据库 API (可选)
+    if USE_DATABASE:
+        from api_db import router as db_router
+        app.include_router(db_router)
+        print("✅ Database API routes registered")
+except Exception as e:
+    print(f"⚠️  Database API not loaded: {e}")
+
+try:
+    # 执行 API
+    from api_execute import router as execute_router
+    app.include_router(execute_router)
+    print("✅ Execute API routes registered")
+except Exception as e:
+    print(f"⚠️  Execute API not loaded: {e}")
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
