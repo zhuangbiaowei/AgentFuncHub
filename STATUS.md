@@ -182,11 +182,36 @@ tests:
    - ~~更新贡献指南中的规范引用~~
    - 状态: README.md 已更新，反映 FunctionSpec v0.1 和项目当前状态
 
-### 低优先级 (后续)
+### 低优先级 (后续) ✅ 已完成
 
-7. **发布 v0.1**
-   - 打 tag
-   - 写 release notes
+7. **✅ 发布 v0.1**
+   - ~~打 tag v0.1.0~~
+   - ~~写 release notes~~
+   - 状态: ✅ Tag 已推送, Release Notes 已创建
+
+---
+
+## 🎉 Phase 1 完成总结
+
+### 成果
+- **FunctionSpec v0.1**: 完整的函数元数据规范
+- **26 个示例函数**: 覆盖 5 大类别
+- **FastAPI 后端**: 支持语义搜索和验证
+- **验证工具**: `scripts/validate_spec.py`
+- **API 测试**: 21 个测试用例全部通过
+- **文档**: 完整的 API 规范和 README
+
+### 发布
+- **Tag**: `v0.1.0`
+- **Release Notes**: [RELEASE_NOTES_v0.1.0.md](RELEASE_NOTES_v0.1.0.md)
+- **GitHub**: https://github.com/zhuangbiaowei/AgentFuncHub/releases/tag/v0.1.0
+
+### 下一步
+**Phase 2 - MVP 开发**
+- Web 前端界面
+- 函数执行引擎
+- Python SDK
+- 用户认证系统
 
 ---
 
