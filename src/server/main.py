@@ -1,6 +1,6 @@
 """
 AgentFuncHub 后端服务
-FastAPI 实现
+FastAPI 实现 - FunctionSpec 格式支持
 """
 
 from fastapi import FastAPI, HTTPException, Query
@@ -12,10 +12,11 @@ import hashlib
 import uuid
 from datetime import datetime
 from pathlib import Path
+import yaml
 
 app = FastAPI(
     title="AgentFuncHub API",
-    description="面向 AI Agent 的函数级代码共享社区",
+    description="面向 AI Agent 的函数级代码共享社区 - FunctionSpec v0.1",
     version="0.1.0"
 )
 
@@ -28,21 +29,63 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 数据存储（简化版，使用内存 + JSON 文件）
+# 数据存储目录
 DATA_DIR = Path(__file__).parent.parent.parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
 FUNCTIONS_FILE = DATA_DIR / "functions.json"
+
+# 示例函数目录
+EXAMPLES_DIR = Path(__file__).parent.parent.parent / "examples"
 
 # 内存存储
 functions_db: Dict[str, dict] = {}
 
 
+def load_function_yaml(yaml_path: Path) -> Optional[Dict]:
+    """从 YAML 文件加载函数定义"""
+    try:
+        with open(yaml_path, 'r', encoding='utf-8') as f:
+            return yaml.safe_load(f)
+    except Exception as e:
+        print(f"❌ Failed to load {yaml_path}: {e}")
+        return None
+
+
 def load_functions():
-    """从文件加载函数数据"""
+    """从 examples 目录加载所有 function.yaml"""
     global functions_db
+    functions_db = {}
+    
+    if not EXAMPLES_DIR.exists():
+        print(f"⚠️ Examples directory not found: {EXAMPLES_DIR}")
+        return
+    
+    # 遍历 examples 目录下的所有子目录
+    for func_dir in EXAMPLES_DIR.iterdir():
+        if func_dir.is_dir():
+            yaml_path = func_dir / "function.yaml"
+            if yaml_path.exists():
+                func_data = load_function_yaml(yaml_path)
+                if func_data:
+                    func_id = func_data.get('id')
+                    if func_id:
+                        functions_db[func_id] = func_data
+                        print(f"✅ Loaded: {func_id}")
+    
+    print(f"📦 Loaded {len(functions_db)} functions from {EXAMPLES_DIR}")
+    
+    # 同时加载持久化数据（如果有）
     if FUNCTIONS_FILE.exists():
-        with open(FUNCTIONS_FILE, 'r', encoding='utf-8') as f:
-            functions_db = json.load(f)
+        try:
+            with open(FUNCTIONS_FILE, 'r', encoding='utf-8') as f:
+                persisted = json.load(f)
+                # 合并数据（YAML优先）
+                for func_id, func_data in persisted.items():
+                    if func_id not in functions_db:
+                        functions_db[func_id] = func_data
+            print(f"📦 Loaded {len(persisted)} persisted functions")
+        except Exception as e:
+            print(f"⚠️ Failed to load persisted functions: {e}")
 
 
 def save_functions():
@@ -51,71 +94,114 @@ def save_functions():
         json.dump(functions_db, f, ensure_ascii=False, indent=2)
 
 
-# 启动时加载数据
+# 导入向量搜索
+try:
+    from vector_search import VectorSearchService, keyword_search
+except ImportError:
+    # 降级处理
+    class VectorSearchService:
+        def __init__(self):
+            self.model = None
+            self.model_name = "fallback"
+            self.function_ids = []
+        
+        def add_function(self, func_id, data):
+            return False
+        
+        def search(self, query, top_k=10):
+            return []
+        
+        def search_hybrid(self, query, matches, top_k=10):
+            return []
+    
+    def keyword_search(query, data):
+        return 0.0
+
+
+# 初始化向量搜索服务
+vector_service = VectorSearchService()
+
+
 @app.on_event("startup")
 async def startup_event():
+    """启动时加载数据"""
     load_functions()
+    
+    # 加载到向量索引
+    for func_id, func_data in functions_db.items():
+        vector_service.add_function(func_id, func_data)
+    
+    print(f"🚀 Server started with {len(functions_db)} functions indexed")
 
 
-# 数据模型
-class FunctionInput(BaseModel):
-    name: str = Field(..., description="参数名")
-    type: str = Field(..., description="参数类型")
-    description: str = Field(..., description="参数描述")
-    required: bool = Field(True, description="是否必需")
-    default: Optional[Any] = Field(None, description="默认值")
+# 数据模型 - FunctionSpec v0.1 格式
+
+class ParameterSchema(BaseModel):
+    type: str
+    required: bool = True
+    description: Optional[str] = None
+    default: Optional[Any] = None
+    example: Optional[Any] = None
+    constraints: Optional[Dict[str, Any]] = None
+    enum: Optional[List[Any]] = None
 
 
-class FunctionOutput(BaseModel):
-    type: str = Field(..., description="返回类型")
-    description: str = Field(..., description="返回描述")
+class SignatureSchema(BaseModel):
+    inputs: Dict[str, ParameterSchema]
+    outputs: Dict[str, ParameterSchema]
+    errors: Optional[List[Dict[str, str]]] = None
 
 
-class FunctionSignature(BaseModel):
-    inputs: List[FunctionInput]
-    outputs: List[FunctionOutput]
+class EntrypointSchema(BaseModel):
+    kind: str  # inline/file/container/wasm
+    symbol: str
+    code: Optional[str] = None
+    file: Optional[str] = None
+
+
+class LanguageSchema(BaseModel):
+    name: str
+    runtime: Optional[str] = None
+
+
+class SemanticsSchema(BaseModel):
+    deterministic: bool = True
+    side_effects: List[str] = ["none"]
+    purity: str = "pure"
+    concurrency: Optional[Dict[str, bool]] = None
+    security: Optional[Dict[str, Any]] = None
 
 
 class TestCase(BaseModel):
     name: str
-    description: str
     input: Dict[str, Any]
-    expected: Dict[str, Any]
-    tags: Optional[List[str]] = []
+    expect: Dict[str, Any]
 
 
-class FunctionCode(BaseModel):
-    source: str
-    hash: str
-    line_count: int
-    complexity: float
+class TestSuite(BaseModel):
+    framework: str = "builtin"
+    cases: List[TestCase]
 
 
-class FunctionSecurity(BaseModel):
-    sandbox_required: bool = True
-    network_access: bool = False
-    filesystem_access: bool = False
-    risk_level: str = "low"
-
-
-class FunctionManifest(BaseModel):
-    function_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    name: str
-    display_name: Optional[str] = None
-    description: str
-    language: str
+class FunctionSpec(BaseModel):
+    """FunctionSpec v0.1 主模型"""
+    spec_version: str = "0.1"
+    id: str
     version: str = "1.0.0"
-    signature: FunctionSignature
-    code: FunctionCode
-    test_cases: List[TestCase]
-    tags: List[str] = []
-    categories: List[str] = []
-    usage_scenarios: List[str] = []
-    security: FunctionSecurity = FunctionSecurity()
-    author: Dict[str, Any]
+    name: str
+    description: str
     license: str = "MIT"
-    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
-    updated_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    authors: Optional[List[Dict[str, str]]] = None
+    language: LanguageSchema
+    entrypoint: EntrypointSchema
+    signature: SignatureSchema
+    semantics: Optional[SemanticsSchema] = None
+    dependencies: Optional[Dict[str, List[Dict]]] = None
+    examples: Optional[List[Dict[str, Any]]] = None
+    tests: Optional[TestSuite] = None
+    tags: Optional[List[str]] = None
+    quality: Optional[Dict[str, Any]] = None
+    provenance: Optional[Dict[str, Any]] = None
 
 
 class SearchQuery(BaseModel):
@@ -129,32 +215,18 @@ class SearchResult(BaseModel):
     name: str
     description: str
     similarity_score: float
-    manifest: Dict[str, Any]
-
-
-# 导入向量搜索
-from vector_search import VectorSearchService, keyword_search
-
-# 初始化向量搜索服务
-vector_service = VectorSearchService()
-
-# 启动时加载函数到向量索引
-@app.on_event("startup")
-async def startup_event():
-    load_functions()
-    
-    # 加载到向量索引
-    for func_id, func_data in functions_db.items():
-        vector_service.add_function(func_id, func_data)
+    spec: Dict[str, Any]
 
 
 # API 路由
+
 @app.get("/")
 async def root():
     """根路由"""
     return {
         "name": "AgentFuncHub",
         "version": "0.1.0",
+        "spec_version": "0.1",
         "status": "running",
         "functions_count": len(functions_db),
         "search": {
@@ -168,52 +240,56 @@ async def root():
 @app.get("/health")
 async def health_check():
     """健康检查"""
-    return {"status": "healthy"}
+    return {
+        "status": "healthy",
+        "functions_loaded": len(functions_db),
+        "spec_version": "0.1"
+    }
 
 
 @app.post("/functions", response_model=Dict[str, Any])
-async def create_function(manifest: FunctionManifest):
+async def create_function(spec: FunctionSpec):
     """
-    创建新函数
+    创建新函数 (FunctionSpec 格式)
     """
     # 检查是否已存在
-    if manifest.function_id in functions_db:
+    if spec.id in functions_db:
         raise HTTPException(status_code=409, detail="Function already exists")
     
-    # 验证代码哈希
-    code_source = manifest.code.source
-    expected_hash = hashlib.sha256(code_source.encode()).hexdigest()[:16]
-    if manifest.code.hash != expected_hash and manifest.code.hash != "sha256:placeholder":
+    # 验证代码哈希（如果是 inline）
+    if spec.entrypoint.kind == "inline" and spec.entrypoint.code:
+        code_source = spec.entrypoint.code
         # 重新计算哈希
-        manifest.code.hash = f"sha256:{expected_hash}"
+        hash_val = hashlib.sha256(code_source.encode()).hexdigest()[:16]
     
     # 存储函数
-    func_data = manifest.dict()
-    functions_db[manifest.function_id] = func_data
+    func_data = spec.dict()
+    functions_db[spec.id] = func_data
     save_functions()
     
     # 添加到向量索引
-    vector_service.add_function(manifest.function_id, func_data)
+    indexed = vector_service.add_function(spec.id, func_data)
     
     return {
         "success": True,
-        "function_id": manifest.function_id,
-        "url": f"/functions/{manifest.function_id}",
+        "function_id": spec.id,
+        "url": f"/functions/{spec.id}",
         "message": "Function created successfully",
-        "indexed": vector_service.model is not None
+        "indexed": indexed
     }
 
 
 @app.get("/functions/{function_id}")
 async def get_function(function_id: str):
     """
-    获取函数详情
+    获取函数详情 (FunctionSpec 格式)
     """
     if function_id not in functions_db:
         raise HTTPException(status_code=404, detail="Function not found")
     
     return {
         "success": True,
+        "spec_version": "0.1",
         "function": functions_db[function_id]
     }
 
@@ -221,7 +297,7 @@ async def get_function(function_id: str):
 @app.get("/functions")
 async def list_functions(
     language: Optional[str] = None,
-    category: Optional[str] = None,
+    tag: Optional[str] = None,
     limit: int = Query(10, ge=1, le=100),
     offset: int = Query(0, ge=0)
 ):
@@ -232,9 +308,9 @@ async def list_functions(
     
     # 过滤
     if language:
-        results = [f for f in results if f.get("language") == language]
-    if category:
-        results = [f for f in results if category in f.get("categories", [])]
+        results = [f for f in results if f.get("language", {}).get("name") == language]
+    if tag:
+        results = [f for f in results if tag in f.get("tags", [])]
     
     total = len(results)
     results = results[offset:offset + limit]
@@ -244,6 +320,7 @@ async def list_functions(
         "total": total,
         "limit": limit,
         "offset": offset,
+        "spec_version": "0.1",
         "functions": results
     }
 
@@ -253,27 +330,25 @@ async def search_functions(query: SearchQuery):
     """
     语义搜索函数（使用向量搜索）
     """
-    # 先获取关键词匹配结果
+    # 关键词匹配
     keyword_matches = []
     for func_id, func_data in functions_db.items():
-        score = keyword_search(query.query, func_data)
+        score = keyword_search_funcspec(query.query, func_data)
         if score > 0.1:
             keyword_matches.append(func_id)
     
-    # 使用向量搜索或混合搜索
+    # 混合搜索或关键词搜索
     if vector_service.model:
-        # 混合搜索
         search_results = vector_service.search_hybrid(
-            query.query, 
-            keyword_matches, 
+            query.query,
+            keyword_matches,
             top_k=query.limit * 2
         )
     else:
-        # 降级到纯关键词搜索
         search_results = []
         for func_id in keyword_matches:
             func_data = functions_db[func_id]
-            score = keyword_search(query.query, func_data)
+            score = keyword_search_funcspec(query.query, func_data)
             search_results.append((func_id, score))
         search_results.sort(key=lambda x: x[1], reverse=True)
         search_results = search_results[:query.limit]
@@ -284,17 +359,18 @@ async def search_functions(query: SearchQuery):
         func_data = functions_db.get(func_id)
         if not func_data:
             continue
-            
+        
         # 语言过滤
-        if query.language and func_data.get("language") != query.language:
-            continue
+        if query.language:
+            if func_data.get("language", {}).get("name") != query.language:
+                continue
         
         results.append({
             "function_id": func_id,
             "name": func_data.get("name"),
             "description": func_data.get("description"),
             "similarity_score": round(score, 3),
-            "manifest": func_data
+            "spec": func_data
         })
     
     results = results[:query.limit]
@@ -303,9 +379,56 @@ async def search_functions(query: SearchQuery):
         "success": True,
         "query": query.query,
         "total": len(results),
+        "spec_version": "0.1",
         "search_method": "hybrid" if vector_service.model else "keyword",
         "results": results
     }
+
+
+def keyword_search_funcspec(query: str, func_data: Dict) -> float:
+    """
+    基于关键词的简单搜索（适配 FunctionSpec 格式）
+    """
+    query_words = set(query.lower().split())
+    
+    # 构建函数文本
+    texts = [
+        func_data.get('name', ''),
+        func_data.get('description', ''),
+        ' '.join(func_data.get('tags', [])),
+    ]
+    
+    # 添加签名信息
+    signature = func_data.get('signature', {})
+    for param_name in signature.get('inputs', {}).keys():
+        texts.append(param_name)
+    for param_name in signature.get('outputs', {}).keys():
+        texts.append(param_name)
+    
+    func_text = ' '.join(texts).lower()
+    func_words = set(func_text.split())
+    
+    # 同义词扩展
+    synonyms = {
+        'email': ['mail', 'mailbox', '邮箱'],
+        'phone': ['mobile', 'cellphone', 'telephone', '电话', '手机'],
+        'validate': ['check', 'verify', 'validation', '验证'],
+        'date': ['time', 'datetime', 'calendar', '日期', '时间'],
+        'password': ['pwd', 'passwd', '密码'],
+        'json': ['json', 'json格式'],
+        'encode': ['encoding', 'decode', '编码'],
+    }
+    
+    expanded_query = set(query_words)
+    for word in query_words:
+        if word in synonyms:
+            expanded_query.update(synonyms[word])
+    
+    # 计算 Jaccard 相似度
+    intersection = len(expanded_query & func_words)
+    union = len(expanded_query | func_words)
+    
+    return intersection / union if union > 0 else 0.0
 
 
 @app.delete("/functions/{function_id}")
@@ -326,45 +449,42 @@ async def delete_function(function_id: str):
 
 
 @app.post("/validate")
-async def validate_function(manifest: FunctionManifest):
+async def validate_function(spec: FunctionSpec):
     """
-    验证函数（检查语法和测试用例）
+    验证函数（检查 FunctionSpec 格式和测试用例）
     """
     errors = []
     warnings = []
     
     # 检查必需字段
-    required_fields = ["name", "description", "language", "signature", "code"]
-    for field in required_fields:
-        if not getattr(manifest, field, None):
-            errors.append(f"Missing required field: {field}")
+    if not spec.id:
+        errors.append("Missing required field: id")
+    if not spec.name:
+        errors.append("Missing required field: name")
+    if not spec.description:
+        errors.append("Missing required field: description")
+    if not spec.signature:
+        errors.append("Missing required field: signature")
+    
+    # 检查 entrypoint
+    if not spec.entrypoint:
+        errors.append("Missing required field: entrypoint")
+    elif spec.entrypoint.kind == "inline" and not spec.entrypoint.code:
+        errors.append("Inline entrypoint requires 'code' field")
     
     # 检查测试用例
-    if not manifest.test_cases:
+    if not spec.tests or not spec.tests.cases:
         warnings.append("No test cases provided")
-    else:
-        # 这里可以执行测试用例验证代码
-        pass
+    
+    # 检查语义声明
+    if not spec.semantics:
+        warnings.append("No semantics declaration provided")
     
     return {
         "valid": len(errors) == 0,
+        "spec_version": "0.1",
         "errors": errors,
         "warnings": warnings
-    }
-
-
-@app.get("/categories")
-async def get_categories():
-    """
-    获取所有分类
-    """
-    categories = set()
-    for func in functions_db.values():
-        categories.update(func.get("categories", []))
-    
-    return {
-        "success": True,
-        "categories": sorted(list(categories))
     }
 
 
@@ -380,6 +500,23 @@ async def get_tags():
     return {
         "success": True,
         "tags": sorted(list(tags))
+    }
+
+
+@app.get("/languages")
+async def get_languages():
+    """
+    获取所有编程语言
+    """
+    languages = set()
+    for func in functions_db.values():
+        lang = func.get("language", {}).get("name")
+        if lang:
+            languages.add(lang)
+    
+    return {
+        "success": True,
+        "languages": sorted(list(languages))
     }
 
 

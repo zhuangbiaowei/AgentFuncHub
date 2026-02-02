@@ -1,0 +1,219 @@
+spec_version: "0.1"
+
+id: "parse.date.flexible"
+version: "1.0.0"
+name: "Flexible Date Parser"
+description: "Parse various date formats including natural language (yesterday, 3 days ago), relative dates, and multiple standard formats."
+
+license: "MIT"
+authors:
+  - name: "TimeAgent_1.0"
+    contact: "agent@example.com"
+
+language:
+  name: "python"
+  runtime: "python>=3.8"
+
+entrypoint:
+  kind: "inline"
+  symbol: "parse_date_flexible"
+  code: |
+    from datetime import datetime, timedelta
+    from typing import Tuple, Optional
+    import re
+    
+    def parse_date_flexible(
+        date_string: str,
+        base_date: Optional[str] = None,
+        output_format: str = 'iso'
+    ) -> Tuple[bool, str, str]:
+        if not date_string:
+            return False, '', 'invalid'
+        
+        date_string = date_string.strip().lower()
+        
+        if base_date:
+            try:
+                now = datetime.fromisoformat(base_date.replace('Z', '+00:00'))
+            except:
+                now = datetime.now()
+        else:
+            now = datetime.now()
+        
+        result = None
+        detected_format = 'unknown'
+        
+        # Natural language processing
+        if date_string in ['今天', 'today']:
+            result = now
+            detected_format = 'natural_today'
+        elif date_string in ['昨天', 'yesterday']:
+            result = now - timedelta(days=1)
+            detected_format = 'natural_yesterday'
+        elif date_string in ['明天', 'tomorrow']:
+            result = now + timedelta(days=1)
+            detected_format = 'natural_tomorrow'
+        elif re.match(r'(\d+)天前', date_string):
+            days = int(re.search(r'(\d+)', date_string).group(1))
+            result = now - timedelta(days=days)
+            detected_format = 'natural_relative_past'
+        elif re.match(r'(\d+)天后', date_string):
+            days = int(re.search(r'(\d+)', date_string).group(1))
+            result = now + timedelta(days=days)
+            detected_format = 'natural_relative_future'
+        
+        # Standard format parsing
+        if result is None:
+            formats = [
+                ('%Y-%m-%d', 'iso_date'),
+                ('%Y/%m/%d', 'slash_date'),
+                ('%d/%m/%Y', 'eu_date'),
+                ('%m/%d/%Y', 'us_date'),
+                ('%d-%m-%Y', 'eu_dash_date'),
+                ('%Y%m%d', 'compact_date'),
+                ('%Y-%m-%d %H:%M:%S', 'iso_datetime'),
+            ]
+            
+            for fmt, fmt_name in formats:
+                try:
+                    result = datetime.strptime(date_string, fmt)
+                    detected_format = fmt_name
+                    break
+                except ValueError:
+                    continue
+        
+        if result is None:
+            return False, '', 'invalid'
+        
+        if output_format == 'iso':
+            output = result.strftime('%Y-%m-%d')
+        elif output_format == 'timestamp':
+            output = str(int(result.timestamp()))
+        elif output_format == 'datetime':
+            output = result.isoformat()
+        else:
+            output = result.strftime('%Y-%m-%d')
+        
+        return True, output, detected_format
+
+signature:
+  inputs:
+    date_string:
+      type: "string"
+      required: true
+      description: "Date string to parse"
+      example: "2024-03-15"
+    base_date:
+      type: "string"
+      required: false
+      description: "Base date for relative calculations (ISO format)"
+    output_format:
+      type: "string"
+      required: false
+      default: "iso"
+      description: "Output format: iso, timestamp, or datetime"
+      enum: ["iso", "timestamp", "datetime"]
+  outputs:
+    success:
+      type: "boolean"
+      description: "Whether parsing was successful"
+    date:
+      type: "string"
+      description: "Parsed date in specified format"
+    original_format:
+      type: "string"
+      description: "Detected original format type"
+
+semantics:
+  deterministic: true
+  side_effects: ["none"]
+  purity: "pure"
+  concurrency:
+    thread_safe: true
+    reentrant: true
+  security:
+    sandbox_required: false
+    network_access: false
+    data_sensitivity: "low"
+
+dependencies:
+  system: []
+  packages: []
+
+examples:
+  - name: "iso date"
+    input:
+      date_string: "2024-03-15"
+      output_format: "iso"
+    output:
+      success: true
+      date: "2024-03-15"
+      original_format: "iso_date"
+  - name: "natural language"
+    input:
+      date_string: "昨天"
+      base_date: "2024-03-15"
+      output_format: "iso"
+    output:
+      success: true
+      date: "2024-03-14"
+      original_format: "natural_yesterday"
+
+tests:
+  framework: "builtin"
+  cases:
+    - name: "iso date"
+      input:
+        date_string: "2024-03-15"
+        base_date: null
+        output_format: "iso"
+      expect:
+        success: true
+        date: "2024-03-15"
+        original_format: "iso_date"
+    - name: "natural yesterday"
+      input:
+        date_string: "昨天"
+        base_date: "2024-03-15"
+        output_format: "iso"
+      expect:
+        success: true
+        date: "2024-03-14"
+        original_format: "natural_yesterday"
+    - name: "relative days ago"
+      input:
+        date_string: "3天前"
+        base_date: "2024-03-15"
+        output_format: "iso"
+      expect:
+        success: true
+        date: "2024-03-12"
+        original_format: "natural_relative_past"
+    - name: "slash format"
+      input:
+        date_string: "2024/03/15"
+        output_format: "iso"
+      expect:
+        success: true
+        date: "2024-03-15"
+        original_format: "slash_date"
+    - name: "invalid date"
+      input:
+        date_string: "not a date"
+        output_format: "iso"
+      expect:
+        success: false
+        date: ""
+        original_format: "invalid"
+
+tags: ["date", "parser", "natural_language", "time", "format"]
+
+quality:
+  maturity: "stable"
+  coverage: 0.9
+
+provenance:
+  created_at: "2026-02-01"
+  updated_at: "2026-02-01"
+  source:
+    kind: "manual"

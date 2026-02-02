@@ -1,0 +1,177 @@
+spec_version: "0.1"
+
+id: "convert.number.chinese"
+version: "1.0.0"
+name: "Number to Chinese Converter"
+description: "Convert Arabic numbers to Chinese characters (lower, upper, or money format). Supports integers and various Chinese number styles."
+
+license: "MIT"
+authors:
+  - name: "TextAgent_1.0"
+    contact: "agent@example.com"
+
+language:
+  name: "python"
+  runtime: "python>=3.8"
+
+entrypoint:
+  kind: "inline"
+  symbol: "number_to_chinese"
+  code: |
+    from typing import Tuple
+    
+    def number_to_chinese(number: int, style: str = 'lower') -> Tuple[str, bool]:
+        if not isinstance(number, int):
+            return '', False
+        
+        if number == 0:
+            return '零' if style == 'lower' else '零', True
+        
+        # 小写数字
+        lower_digits = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九']
+        lower_units = ['', '十', '百', '千', '万', '十', '百', '千', '亿']
+        
+        # 大写数字
+        upper_digits = ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖']
+        upper_units = ['', '拾', '佰', '仟', '万', '拾', '佰', '仟', '亿']
+        
+        digits = lower_digits if style == 'lower' else upper_digits
+        units = lower_units if style == 'lower' else upper_units
+        
+        if style == 'money':
+            digits = upper_digits
+            units = ['', '拾', '佰', '仟', '万', '拾', '佰', '仟', '亿']
+        
+        num_str = str(abs(number))
+        result = ''
+        length = len(num_str)
+        
+        for i, char in enumerate(num_str):
+            digit = int(char)
+            pos = length - i - 1
+            
+            if digit == 0:
+                if result and not result.endswith('零') and pos % 4 != 0:
+                    result += digits[0]
+            else:
+                result += digits[digit] + units[pos]
+        
+        result = result.rstrip('零')
+        
+        if style == 'lower' and result.startswith('一十'):
+            result = result[1:]
+        
+        if style == 'money':
+            result += '元整'
+        
+        if number < 0:
+            result = '负' + result
+        
+        return result, True
+
+signature:
+  inputs:
+    number:
+      type: "integer"
+      required: true
+      description: "Number to convert"
+      example: 12345
+    style:
+      type: "string"
+      required: false
+      default: "lower"
+      description: "Conversion style: lower (小写), upper (大写), or money (金额)"
+      enum: ["lower", "upper", "money"]
+  outputs:
+    chinese:
+      type: "string"
+      description: "Chinese number representation"
+    valid:
+      type: "boolean"
+      description: "Whether conversion was successful"
+  errors:
+    - code: "E_INVALID_INPUT"
+      description: "Input is not a valid integer"
+
+semantics:
+  deterministic: true
+  side_effects: ["none"]
+  purity: "pure"
+  concurrency:
+    thread_safe: true
+    reentrant: true
+  security:
+    sandbox_required: false
+    network_access: false
+    data_sensitivity: "low"
+
+dependencies:
+  system: []
+  packages: []
+
+examples:
+  - name: "simple number"
+    input:
+      number: 10
+      style: "lower"
+    output:
+      chinese: "十"
+      valid: true
+  - name: "money format"
+    input:
+      number: 1000
+      style: "money"
+    output:
+      chinese: "壹仟元整"
+      valid: true
+
+tests:
+  framework: "builtin"
+  cases:
+    - name: "one to ten"
+      input:
+        number: 10
+        style: "lower"
+      expect:
+        chinese: "十"
+        valid: true
+    - name: "complex number"
+      input:
+        number: 12345
+        style: "lower"
+      expect:
+        chinese: "一万二千三百四十五"
+        valid: true
+    - name: "upper case"
+      input:
+        number: 10086
+        style: "upper"
+      expect:
+        chinese: "壹万零捌拾陆"
+        valid: true
+    - name: "money format"
+      input:
+        number: 1000
+        style: "money"
+      expect:
+        chinese: "壹仟元整"
+        valid: true
+    - name: "zero"
+      input:
+        number: 0
+        style: "lower"
+      expect:
+        chinese: "零"
+        valid: true
+
+tags: ["chinese", "number", "convert", "localization", "format"]
+
+quality:
+  maturity: "stable"
+  coverage: 0.9
+
+provenance:
+  created_at: "2026-02-01"
+  updated_at: "2026-02-01"
+  source:
+    kind: "manual"

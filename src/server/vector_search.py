@@ -1,5 +1,5 @@
 """
-向量搜索服务
+向量搜索服务 - FunctionSpec 格式支持
 使用 sentence-transformers 进行语义搜索
 """
 
@@ -32,37 +32,40 @@ class VectorSearchService:
         except Exception as e:
             print(f"⚠️ Failed to load model: {e}, using keyword fallback")
     
-    def _create_text_representation(self, manifest: Dict) -> str:
+    def _create_text_representation(self, func_data: Dict) -> str:
         """
-        从函数元数据创建文本表示
+        从 FunctionSpec 创建文本表示
         """
         parts = []
         
         # 名称和描述
-        parts.append(manifest.get('name', ''))
-        parts.append(manifest.get('display_name', ''))
-        parts.append(manifest.get('description', ''))
+        parts.append(func_data.get('name', ''))
+        parts.append(func_data.get('description', ''))
         
         # 标签
-        parts.extend(manifest.get('tags', []))
-        
-        # 使用场景
-        parts.extend(manifest.get('usage_scenarios', []))
+        parts.extend(func_data.get('tags', []))
         
         # 签名信息
-        signature = manifest.get('signature', {})
-        for inp in signature.get('inputs', []):
-            parts.append(inp.get('name', ''))
-            parts.append(inp.get('description', ''))
-        for out in signature.get('outputs', []):
-            parts.append(out.get('description', ''))
+        signature = func_data.get('signature', {})
         
-        # 分类
-        parts.extend(manifest.get('categories', []))
+        # 输入参数
+        for param_name, param_info in signature.get('inputs', {}).items():
+            parts.append(param_name)
+            if isinstance(param_info, dict):
+                parts.append(param_info.get('description', ''))
+        
+        # 输出参数
+        for param_name, param_info in signature.get('outputs', {}).items():
+            parts.append(param_name)
+            if isinstance(param_info, dict):
+                parts.append(param_info.get('description', ''))
+        
+        # ID（用于搜索匹配）
+        parts.append(func_data.get('id', ''))
         
         return ' '.join(filter(None, parts))
     
-    def add_function(self, function_id: str, manifest: Dict) -> bool:
+    def add_function(self, function_id: str, func_data: Dict) -> bool:
         """
         添加函数到索引
         
@@ -73,7 +76,7 @@ class VectorSearchService:
             return False
         
         try:
-            text = self._create_text_representation(manifest)
+            text = self._create_text_representation(func_data)
             vector = self.model.encode(text)
             
             self.function_ids.append(function_id)
@@ -160,19 +163,27 @@ class VectorSearchService:
 
 
 # 简单的关键词匹配（fallback）
-def keyword_search(query: str, manifest: Dict) -> float:
+def keyword_search(query: str, func_data: Dict) -> float:
     """
-    基于关键词的简单搜索（作为向量搜索的 fallback）
+    基于关键词的简单搜索（适配 FunctionSpec 格式）
     """
     query_words = set(query.lower().split())
     
     # 构建函数文本
     texts = [
-        manifest.get('name', ''),
-        manifest.get('description', ''),
-        ' '.join(manifest.get('tags', [])),
-        ' '.join(manifest.get('usage_scenarios', []))
+        func_data.get('name', ''),
+        func_data.get('description', ''),
+        ' '.join(func_data.get('tags', [])),
+        func_data.get('id', '')
     ]
+    
+    # 添加签名信息
+    signature = func_data.get('signature', {})
+    for param_name in signature.get('inputs', {}).keys():
+        texts.append(param_name)
+    for param_name in signature.get('outputs', {}).keys():
+        texts.append(param_name)
+    
     func_text = ' '.join(texts).lower()
     func_words = set(func_text.split())
     
@@ -185,6 +196,10 @@ def keyword_search(query: str, manifest: Dict) -> float:
         'password': ['pwd', 'passwd', '密码'],
         'json': ['json', 'json格式'],
         'encode': ['encoding', 'decode', '编码'],
+        'csv': ['comma', 'delimiter', '表格'],
+        'list': ['array', 'sequence', '列表'],
+        'number': ['digit', 'integer', 'float', '数字'],
+        'text': ['string', '字符', '文本'],
     }
     
     expanded_query = set(query_words)

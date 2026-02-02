@@ -1,0 +1,188 @@
+spec_version: "0.1"
+
+id: "parse.csv"
+version: "1.0.0"
+name: "Simple CSV Parser"
+description: "Parse CSV format strings with support for custom delimiters and quoted fields. Returns structured data with headers and rows."
+
+license: "MIT"
+authors:
+  - name: "DataAgent_1.0"
+    contact: "agent@example.com"
+
+language:
+  name: "python"
+  runtime: "python>=3.8"
+
+entrypoint:
+  kind: "inline"
+  symbol: "parse_csv_simple"
+  code: |
+    import csv
+    import io
+    from typing import Tuple, List, Dict, Any
+    
+    def parse_csv_simple(
+        csv_text: str,
+        delimiter: str = ',',
+        has_header: bool = True
+    ) -> Tuple[bool, List[str], List[Dict[str, Any]], int]:
+        if not csv_text:
+            return True, [], [], 0
+        
+        try:
+            csv_file = io.StringIO(csv_text)
+            reader = csv.reader(csv_file, delimiter=delimiter)
+            
+            rows = list(reader)
+            
+            if not rows:
+                return True, [], [], 0
+            
+            headers = []
+            data_rows = []
+            
+            if has_header:
+                headers = rows[0]
+                data = rows[1:]
+                for row in data:
+                    row_dict = {}
+                    for i, header in enumerate(headers):
+                        row_dict[header] = row[i] if i < len(row) else ''
+                    data_rows.append(row_dict)
+            else:
+                headers = [f'col_{i}' for i in range(len(rows[0]))]
+                for row in rows:
+                    row_dict = {}
+                    for i, header in enumerate(headers):
+                        row_dict[header] = row[i] if i < len(row) else ''
+                    data_rows.append(row_dict)
+            
+            return True, headers, data_rows, len(data_rows)
+            
+        except Exception as e:
+            return False, [], [], 0
+
+signature:
+  inputs:
+    csv_text:
+      type: "string"
+      required: true
+      description: "CSV text to parse"
+    delimiter:
+      type: "string"
+      required: false
+      default: ","
+      description: "Field delimiter character"
+    has_header:
+      type: "boolean"
+      required: false
+      default: true
+      description: "Whether first row is header"
+  outputs:
+    success:
+      type: "boolean"
+      description: "Whether parsing was successful"
+    headers:
+      type: "array"
+      items:
+        type: "string"
+      description: "Header names"
+    rows:
+      type: "array"
+      items:
+        type: "object"
+      description: "Data rows as dictionaries"
+    row_count:
+      type: "integer"
+      description: "Number of data rows"
+
+semantics:
+  deterministic: true
+  side_effects: ["none"]
+  purity: "pure"
+  concurrency:
+    thread_safe: true
+    reentrant: true
+  security:
+    sandbox_required: false
+    network_access: false
+    data_sensitivity: "low"
+
+dependencies:
+  system: []
+  packages: []
+
+examples:
+  - name: "simple csv"
+    input:
+      csv_text: "name,age,city\nAlice,30,NYC\nBob,25,LA"
+      delimiter: ","
+      has_header: true
+    output:
+      success: true
+      headers: ["name", "age", "city"]
+      row_count: 2
+  - name: "semicolon delimiter"
+    input:
+      csv_text: "name;age\nAlice;30"
+      delimiter: ";"
+      has_header: true
+    output:
+      success: true
+      row_count: 1
+
+tests:
+  framework: "builtin"
+  cases:
+    - name: "simple csv"
+      input:
+        csv_text: "name,age,city\nAlice,30,NYC\nBob,25,LA"
+        delimiter: ","
+        has_header: true
+      expect:
+        success: true
+        headers: ["name", "age", "city"]
+        row_count: 2
+    - name: "no header"
+      input:
+        csv_text: "Alice,30\nBob,25"
+        has_header: false
+      expect:
+        success: true
+        headers: ["col_0", "col_1"]
+        row_count: 2
+    - name: "semicolon delimiter"
+      input:
+        csv_text: "name;age\nAlice;30"
+        delimiter: ";"
+        has_header: true
+      expect:
+        success: true
+        row_count: 1
+    - name: "empty csv"
+      input:
+        csv_text: ""
+        has_header: true
+      expect:
+        success: true
+        row_count: 0
+    - name: "quoted fields"
+      input:
+        csv_text: 'name,description\nAlice,"Hello, World!"'
+        has_header: true
+      expect:
+        success: true
+        row_count: 1
+
+tags: ["csv", "parse", "data", "import", "format"]
+
+quality:
+  maturity: "stable"
+  coverage: 0.9
+
+provenance:
+  created_at: "2026-02-01"
+  updated_at: "2026-02-01"
+  source:
+    kind: "manual"

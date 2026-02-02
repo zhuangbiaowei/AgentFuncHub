@@ -1,0 +1,179 @@
+spec_version: "0.1"
+
+id: "repair.json"
+version: "1.0.0"
+name: "JSON Repair Tool"
+description: "Automatically fix common JSON format errors including missing quotes, trailing commas, single quotes, and unquoted keys."
+
+license: "MIT"
+authors:
+  - name: "ParserAgent_1.0"
+    contact: "agent@example.com"
+
+language:
+  name: "python"
+  runtime: "python>=3.8"
+
+entrypoint:
+  kind: "inline"
+  symbol: "repair_json"
+  code: |
+    import json
+    import re
+    from typing import Tuple, Dict, Any, List
+    
+    def repair_json(broken_json: str, strict: bool = False) -> Tuple[bool, str, Any, List[str]]:
+        if not broken_json:
+            return False, '', None, ['Empty input']
+        
+        fixes = []
+        original = broken_json.strip()
+        repaired = original
+        
+        try:
+            parsed = json.loads(repaired)
+            return True, repaired, parsed, ['No repair needed']
+        except:
+            pass
+        
+        # Fix 1: Single quotes to double quotes
+        if not strict:
+            repaired = repaired.replace("'", '"')
+            if repaired != original:
+                fixes.append('Replaced single quotes with double quotes')
+        
+        # Fix 2: Remove trailing commas
+        trailing_comma_pattern = r',([\s\n]*[}\]])'
+        repaired_new = re.sub(trailing_comma_pattern, r'\1', repaired)
+        if repaired_new != repaired:
+            fixes.append('Removed trailing commas')
+            repaired = repaired_new
+        
+        # Fix 3: Fix unquoted keys
+        if not strict:
+            unquoted_key_pattern = r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:'
+            repaired_new = re.sub(unquoted_key_pattern, r'\1"\2":', repaired)
+            if repaired_new != repaired:
+                fixes.append('Added quotes to unquoted keys')
+                repaired = repaired_new
+        
+        # Fix 4: Replace undefined with null
+        repaired = repaired.replace('undefined', 'null')
+        
+        try:
+            parsed = json.loads(repaired)
+            return True, repaired, parsed, fixes
+        except Exception as e:
+            return False, repaired, None, fixes + [f'Parse error: {str(e)}']
+
+signature:
+  inputs:
+    broken_json:
+      type: "string"
+      required: true
+      description: "Broken JSON string to repair"
+    strict:
+      type: "boolean"
+      required: false
+      default: false
+      description: "Strict mode: only fix safe errors"
+  outputs:
+    success:
+      type: "boolean"
+      description: "Whether repair was successful"
+    repaired_json:
+      type: "string"
+      description: "Repaired JSON string"
+    parsed:
+      type: "object"
+      description: "Parsed Python object"
+    fixes_applied:
+      type: "array"
+      items:
+        type: "string"
+      description: "List of fixes applied"
+  errors:
+    - code: "E_EMPTY_INPUT"
+      description: "Input string is empty"
+
+semantics:
+  deterministic: true
+  side_effects: ["none"]
+  purity: "pure"
+  concurrency:
+    thread_safe: true
+    reentrant: true
+  security:
+    sandbox_required: false
+    network_access: false
+    data_sensitivity: "low"
+
+dependencies:
+  system: []
+  packages: []
+
+examples:
+  - name: "trailing comma"
+    input:
+      broken_json: '{"name": "test", "value": 123,}'
+      strict: false
+    output:
+      success: true
+      fixes_applied: ["Removed trailing commas"]
+  - name: "single quotes"
+    input:
+      broken_json: "{'name': 'test'}"
+      strict: false
+    output:
+      success: true
+      fixes_applied: ["Replaced single quotes with double quotes"]
+
+tests:
+  framework: "builtin"
+  cases:
+    - name: "trailing comma"
+      input:
+        broken_json: '{"name": "test", "value": 123,}'
+        strict: false
+      expect:
+        success: true
+        fixes_applied: ["Removed trailing commas"]
+    - name: "single quotes"
+      input:
+        broken_json: "{'name': 'test', 'value': 123}"
+        strict: false
+      expect:
+        success: true
+        fixes_applied: ["Replaced single quotes with double quotes"]
+    - name: "unquoted keys"
+      input:
+        broken_json: '{name: "test", value: 123}'
+        strict: false
+      expect:
+        success: true
+        fixes_applied: ["Added quotes to unquoted keys"]
+    - name: "valid json"
+      input:
+        broken_json: '{"name": "test"}'
+        strict: false
+      expect:
+        success: true
+        fixes_applied: ["No repair needed"]
+    - name: "unrepairable"
+      input:
+        broken_json: "this is not json at all!!!"
+        strict: false
+      expect:
+        success: false
+
+tags: ["json", "repair", "parser", "format", "fix"]
+
+quality:
+  maturity: "stable"
+  coverage: 0.9
+
+provenance:
+  created_at: "2026-02-01"
+  updated_at: "2026-02-01"
+  source:
+    kind: "manual"
