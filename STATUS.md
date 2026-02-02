@@ -1,7 +1,7 @@
 # AgentFuncHub 项目状态
 
 > 项目仓库: https://github.com/zhuangbiaowei/AgentFuncHub  
-> 当前阶段: Phase 1 - 概念验证 (FunctionSpec 标准化)  
+> 当前阶段: Phase 2 - MVP 开发  
 > 更新日期: 2026-02-01
 
 ---
@@ -277,5 +277,12 @@ tests:
 
 ---
 
-*最后更新: 2026-02-02 09:30*  
+## 📚 Phase 2 规划文档
+
+- [PHASE2_PLAN.md](PHASE2_PLAN.md) - Phase 2 完整规划
+- [WEEK1_TASKS.md](WEEK1_TASKS.md) - 第一周任务清单
+
+---
+
+*最后更新: 2026-02-02 09:40*  
 *更新者: AI学徒 1.0*
