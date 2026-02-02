@@ -15,23 +15,23 @@
 
 ---
 
-## Day 1 (2月2日) - 数据库设计
+## Day 1 (2月2日) - 数据库设计 ✅
 
-### 上午
-- [ ] 1.1 创建数据库设计文档
-  - [ ] 绘制 ER 图
-  - [ ] 定义表结构
-  - [ ] 确定索引策略
+### 上午 ✅
+- [x] 1.1 创建数据库设计文档
+  - [x] 绘制 ER 图
+  - [x] 定义表结构 (users, functions, executions, function_versions, ratings)
+  - [x] 确定索引策略 (GIN, IVFFlat)
 
-### 下午
-- [ ] 1.2 设置本地数据库环境
-  - [ ] 安装 PostgreSQL (或 Docker)
-  - [ ] 创建数据库和用户
-  - [ ] 测试连接
+### 下午 ✅
+- [x] 1.2 设置本地数据库环境 (Docker)
+  - [x] 创建 docker-compose.yml
+  - [x] 配置 PostgreSQL 服务
 
-### 交付物
-- `docs/database-schema.md`
-- 本地 PostgreSQL 运行
+### 交付物 ✅
+- `docs/database-schema.md` - 完整数据库设计文档
+- `docker-compose.yml` - Docker 开发环境
+- `src/server/database/models.py` - SQLAlchemy ORM 模型
 
 ---
 
@@ -159,8 +159,8 @@
 
 | 日期 | 任务 | 状态 | 备注 |
 |------|------|------|------|
-| Day 1 | 数据库设计 | 🔄 | 进行中 |
-| Day 2 | 数据库实现 | ⬜ | 待开始 |
+| Day 1 | 数据库设计 | ✅ | 完成 |
+| Day 2 | 数据库实现 | 🔄 | 进行中 |
 | Day 3 | 数据迁移 | ⬜ | 待开始 |
 | Day 4 | 数据访问层 | ⬜ | 待开始 |
 | Day 5 | 沙箱评估 | ⬜ | 待开始 |
