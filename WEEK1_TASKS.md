@@ -35,22 +35,27 @@
 
 ---
 
-## Day 2 (2月3日) - 数据库实现
+## Day 2 (2月3日) - 数据库实现 ✅
 
-### 上午
-- [ ] 2.1 创建表结构
-  - [ ] `functions` 表
-  - [ ] `users` 表
-  - [ ] `executions` 表
+### 上午 ✅
+- [x] 2.1 创建表结构
+  - [x] `functions` 表
+  - [x] `users` 表
+  - [x] `executions` 表
+  - [x] `function_versions` 表
+  - [x] `ratings` 表
 
-### 下午
-- [ ] 2.2 数据库迁移脚本
-  - [ ] 使用 Alembic 或纯 SQL
-  - [ ] 创建 migration 文件
+### 下午 ✅
+- [x] 2.2 数据库迁移脚本
+  - [x] 创建 `scripts/migrate_to_postgres.py`
+  - [x] 兼容 SQLite 和 PostgreSQL
+  - [x] 26 个函数成功迁移
 
-### 交付物
-- `src/server/database/migrations/`
-- `src/server/database/models.py`
+### 交付物 ✅
+- `src/server/database/models.py` - SQLAlchemy ORM 模型
+- `src/server/database/repository.py` - 数据访问层
+- `scripts/migrate_to_postgres.py` - 迁移脚本
+- `agentfunchub.db` - SQLite 数据库文件
 
 ---
 
@@ -160,10 +165,10 @@
 | 日期 | 任务 | 状态 | 备注 |
 |------|------|------|------|
 | Day 1 | 数据库设计 | ✅ | 完成 |
-| Day 2 | 数据库实现 | 🔄 | 进行中 |
-| Day 3 | 数据迁移 | ⬜ | 待开始 |
-| Day 4 | 数据访问层 | ⬜ | 待开始 |
-| Day 5 | 沙箱评估 | ⬜ | 待开始 |
+| Day 2 | 数据库实现 | ✅ | 完成 |
+| Day 3 | 数据迁移 | ✅ | 完成 |
+| Day 4 | 数据访问层 | ✅ | 完成 |
+| Day 5 | 沙箱评估 | 🔄 | 进行中 |
 | Day 6 | 沙箱执行器 | ⬜ | 待开始 |
 | Day 7 | 执行 API | ⬜ | 待开始 |
 

@@ -1,9 +1,10 @@
 """
 AgentFuncHub 后端服务
 FastAPI 实现 - FunctionSpec 格式支持
+支持文件存储和 PostgreSQL/SQLite 数据库
 """
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
@@ -13,11 +14,12 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 import yaml
+import os
 
 app = FastAPI(
     title="AgentFuncHub API",
     description="面向 AI Agent 的函数级代码共享社区 - FunctionSpec v0.1",
-    version="0.1.0"
+    version="0.2.0"
 )
 
 # CORS 配置
@@ -39,6 +41,20 @@ EXAMPLES_DIR = Path(__file__).parent.parent.parent / "examples"
 
 # 内存存储
 functions_db: Dict[str, dict] = {}
+
+# 数据库支持（可选）
+USE_DATABASE = os.getenv("USE_DATABASE", "false").lower() == "true"
+
+db_session = None
+if USE_DATABASE:
+    try:
+        from database import get_db_session, USE_SQLITE
+        from database.repository import FunctionRepository
+        db_session = get_db_session
+        print(f"🗄️  Database mode enabled ({'SQLite' if USE_SQLITE else 'PostgreSQL'})")
+    except Exception as e:
+        print(f"⚠️  Database not available: {e}")
+        USE_DATABASE = False
 
 
 def load_function_yaml(yaml_path: Path) -> Optional[Dict]:
@@ -223,11 +239,14 @@ class SearchResult(BaseModel):
 @app.get("/")
 async def root():
     """根路由"""
+    storage_mode = "database" if USE_DATABASE else "file"
+    
     return {
         "name": "AgentFuncHub",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "spec_version": "0.1",
         "status": "running",
+        "storage_mode": storage_mode,
         "functions_count": len(functions_db),
         "search": {
             "method": "hybrid" if vector_service.model else "keyword",

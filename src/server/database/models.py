@@ -1,19 +1,20 @@
 """
 AgentFuncHub 数据库模型
 SQLAlchemy 2.0 风格
+兼容 PostgreSQL 和 SQLite
 """
 
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 from sqlalchemy import (
-    create_engine, Column, String, Text, DateTime, Boolean, 
-    Integer, DECIMAL, ForeignKey, JSON, ARRAY, Index, UniqueConstraint,
-    event
+    Column, String, Text, DateTime, Boolean, 
+    Integer, DECIMAL, ForeignKey, JSON, Index, UniqueConstraint,
+    event, TypeDecorator
 )
-from sqlalchemy.dialects.postgresql import UUID, TSVECTOR, INET
-from sqlalchemy.orm import DeclarativeBase, relationship, Session
+from sqlalchemy.orm import DeclarativeBase, relationship
 from sqlalchemy.sql import func
 import uuid
+import json
 
 
 class Base(DeclarativeBase):
@@ -21,11 +22,51 @@ class Base(DeclarativeBase):
     pass
 
 
+# 兼容层: UUID 类型
+class UUID(TypeDecorator):
+    """跨数据库 UUID 类型"""
+    impl = String(36)
+    cache_ok = True
+    
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        if isinstance(value, uuid.UUID):
+            return str(value)
+        return value
+    
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        return uuid.UUID(value) if not isinstance(value, uuid.UUID) else value
+
+
+# 兼容层: ARRAY 类型 (SQLite 不支持)
+class Array(TypeDecorator):
+    """跨数据库数组类型，SQLite 使用 JSON"""
+    impl = JSON
+    cache_ok = True
+    
+    def __init__(self, item_type=None, **kwargs):
+        super().__init__(**kwargs)
+        self.item_type = item_type
+    
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return []
+        return value
+    
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return []
+        return value
+
+
 class User(Base):
     """用户模型"""
     __tablename__ = "users"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
     username = Column(String(50), unique=True, nullable=False)
     email = Column(String(255), unique=True, nullable=False)
     github_id = Column(String(100), unique=True, nullable=True)
@@ -50,11 +91,11 @@ class Function(Base):
     __tablename__ = "functions"
     
     # 主键
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
     spec_id = Column(String(255), unique=True, nullable=False, index=True)
     
     # 所有者
-    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    owner_id = Column(UUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     
     # 基本信息
     name = Column(String(255), nullable=False)
@@ -84,10 +125,10 @@ class Function(Base):
     semantics_security = Column(JSON, default={})
     
     # 标签 (GIN 索引)
-    tags = Column(ARRAY(String), default=[], index=True)
+    tags = Column(Array(String), default=[])
     
     # 搜索文本 (全文搜索)
-    search_text = Column(TSVECTOR, nullable=True)
+    search_text = Column(Text, nullable=True)  # 简化为 Text，全文搜索需要 PostgreSQL
     
     # 向量嵌入 (需要 pgvector 扩展)
     # 注意: 需要先安装 pgvector: CREATE EXTENSION vector;
@@ -121,10 +162,10 @@ class Function(Base):
     ratings = relationship("Rating", back_populates="function")
     versions = relationship("FunctionVersion", back_populates="function")
     
-    # 索引
-    __table_args__ = (
-        Index('idx_functions_search', 'search_text', postgresql_using='gin'),
-    )
+    # 索引 (PostgreSQL 特定)
+    # __table_args__ = (
+    #     Index('idx_functions_search', 'search_text', postgresql_using='gin'),
+    # )
     
     def __repr__(self):
         return f"<Function(spec_id={self.spec_id}, name={self.name})>"
@@ -160,9 +201,9 @@ class Execution(Base):
     """执行记录模型"""
     __tablename__ = "executions"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    function_id = Column(UUID(as_uuid=True), ForeignKey("functions.id", ondelete="SET NULL"), nullable=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
+    function_id = Column(UUID, ForeignKey("functions.id", ondelete="SET NULL"), nullable=True)
+    user_id = Column(UUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     
     # 执行状态
     status = Column(String(20), nullable=False, index=True)  # pending, running, success, error, timeout
@@ -185,7 +226,7 @@ class Execution(Base):
     sandbox_logs = Column(Text, nullable=True)
     
     # 元数据
-    client_ip = Column(INET, nullable=True)
+    client_ip = Column(String(45), nullable=True)  # IPv6 最大 45 字符
     user_agent = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     started_at = Column(DateTime(timezone=True), nullable=True)
@@ -203,12 +244,12 @@ class FunctionVersion(Base):
     """函数版本历史"""
     __tablename__ = "function_versions"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    function_id = Column(UUID(as_uuid=True), ForeignKey("functions.id", ondelete="CASCADE"), nullable=False)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
+    function_id = Column(UUID, ForeignKey("functions.id", ondelete="CASCADE"), nullable=False)
     version = Column(String(50), nullable=False)
     spec_json = Column(JSON, nullable=False)
     change_notes = Column(Text, nullable=True)
-    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_by = Column(UUID, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # 关系
@@ -227,9 +268,9 @@ class Rating(Base):
     """评分模型"""
     __tablename__ = "ratings"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    function_id = Column(UUID(as_uuid=True), ForeignKey("functions.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
+    function_id = Column(UUID, ForeignKey("functions.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     rating = Column(Integer, nullable=False)  # 1-5
     comment = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
