@@ -1,9 +1,9 @@
 /**
- * 主应用组件
+ * 主应用组件 (带路由)
  */
 
 import { useState, useEffect } from 'react';
-import { Layout, Menu, Input, Button, Avatar, Dropdown } from 'antd';
+import { Layout, Menu, Input, Button, Avatar, Dropdown, Badge } from 'antd';
 import {
   SearchOutlined,
   HomeOutlined,
@@ -11,24 +11,28 @@ import {
   LogoutOutlined,
   GithubOutlined,
   CodeOutlined,
+  PlusOutlined,
+  AppstoreOutlined,
 } from '@ant-design/icons';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { User } from './types';
 import { api } from './api';
 import FunctionList from './components/FunctionList';
 import FunctionDetail from './components/FunctionDetail';
+import PublishFunction from './components/pages/PublishFunction';
+import UserCenter from './components/pages/UserCenter';
 import './App.css';
 
 const { Header, Content, Footer } = Layout;
 const { Search } = Input;
 
-type View = 'home' | 'search' | 'detail' | 'profile';
-
-function App() {
-  const [view, setView] = useState<View>('home');
+// 主应用内容
+function AppContent() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [selectedFunction, setSelectedFunction] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(false);
 
   // 检查登录状态
   useEffect(() => {
@@ -55,30 +59,28 @@ function App() {
 
   const handleSearch = (value: string) => {
     setSearchQuery(value);
-    setView('search');
+    navigate(`/?search=${encodeURIComponent(value)}`);
   };
 
   const handleFunctionClick = (id: string) => {
-    setSelectedFunction(id);
-    setView('detail');
+    navigate(`/functions/${id}`);
   };
 
   const handleLogin = () => {
-    // 打开 GitHub OAuth 登录
     window.location.href = 'http://localhost:8000/auth/github/login';
   };
 
   const handleLogout = () => {
     api.setToken(null);
     setUser(null);
-    setView('home');
+    navigate('/');
   };
 
   const userMenuItems = [
     {
       key: 'profile',
       icon: <UserOutlined />,
-      label: '个人中心',
+      label: <Link to="/user">个人中心</Link>,
     },
     {
       key: 'logout',
@@ -88,23 +90,26 @@ function App() {
     },
   ];
 
+  const menuItems = [
+    { key: '/', icon: <HomeOutlined />, label: <Link to="/">首页</Link> },
+    { key: '/publish', icon: <PlusOutlined />, label: <Link to="/publish">发布函数</Link> },
+  ];
+
+  const currentKey = location.pathname === '/' ? '/' : location.pathname;
+
   return (
     <Layout className="app-layout">
       <Header className="app-header">
         <div className="header-left">
-          <div className="logo" onClick={() => setView('home')}>
+          <div className="logo" onClick={() => navigate('/')}>
             <CodeOutlined />
             <span>AgentFuncHub</span>
           </div>
           <Menu
             theme="dark"
             mode="horizontal"
-            selectedKeys={[view]}
-            items={[
-              { key: 'home', icon: <HomeOutlined />, label: '首页' },
-              { key: 'search', icon: <SearchOutlined />, label: '搜索' },
-            ]}
-            onClick={({ key }) => setView(key as View)}
+            selectedKeys={[currentKey]}
+            items={menuItems}
           />
         </div>
 
@@ -133,52 +138,92 @@ function App() {
               icon={<GithubOutlined />}
               onClick={handleLogin}
             >
-              GitHub 登录
+              登录
             </Button>
           )}
         </div>
       </Header>
 
       <Content className="app-content">
-        {view === 'home' && (
-          <div className="home-view">
-            <div className="hero">
-              <h1>面向 Agent 的函数级代码共享社区</h1>
-              <p>发现和分享可复用的 AI Agent 函数</p>
-              <Search
-                placeholder="搜索函数，例如：验证邮箱、格式化日期..."
-                enterButton="搜索"
-                size="large"
-                onSearch={handleSearch}
-                style={{ width: 600, maxWidth: '90%' }}
+        <Routes>
+          <Route 
+            path="/" 
+            element={
+              <HomeView 
+                searchQuery={searchQuery}
+                onFunctionClick={handleFunctionClick}
               />
-            </div>
-            <FunctionList onFunctionClick={handleFunctionClick} />
-          </div>
-        )}
-
-        {view === 'search' && (
-          <div className="search-view">
-            <h2>搜索结果: "{searchQuery}"</h2>
-            <FunctionList
-              searchQuery={searchQuery}
-              onFunctionClick={handleFunctionClick}
-            />
-          </div>
-        )}
-
-        {view === 'detail' && selectedFunction && (
-          <FunctionDetail
-            functionId={selectedFunction}
-            onBack={() => setView('home')}
+            } 
           />
-        )}
+          <Route 
+            path="/functions/:id" 
+            element={<FunctionDetailView onBack={() => navigate('/')} />} 
+          />
+          <Route path="/publish" element={<PublishFunction />} />
+          <Route path="/user" element={<UserCenter />} />
+        </Routes>
       </Content>
 
       <Footer className="app-footer">
         AgentFuncHub ©2026 - FunctionSpec v0.1
       </Footer>
     </Layout>
+  );
+}
+
+// 首页视图
+function HomeView({ 
+  searchQuery, 
+  onFunctionClick 
+}: { 
+  searchQuery: string;
+  onFunctionClick: (id: string) => void;
+}) {
+  const location = useLocation();
+  const urlParams = new URLSearchParams(location.search);
+  const searchFromUrl = urlParams.get('search') || '';
+
+  return (
+    <div className="home-view">
+      {!searchFromUrl && (
+        <div className="hero">
+          <h1>面向 Agent 的函数级代码共享社区</h1>
+          <p>发现和分享可复用的 AI Agent 函数</p>
+        </div>
+      )}
+      
+      <div style={{ marginBottom: 24 }}>
+        {searchFromUrl ? (
+          <h2>搜索结果: "{searchFromUrl}"</h2>
+        ) : (
+          <h2>热门函数</h2>
+        )}
+      </div>
+      
+      <FunctionList 
+        searchQuery={searchFromUrl}
+        onFunctionClick={onFunctionClick} 
+      />
+    </div>
+  );
+}
+
+// 函数详情视图
+function FunctionDetailView({ onBack }: { onBack: () => void }) {
+  const location = useLocation();
+  const id = location.pathname.split('/').pop();
+  
+  if (!id) return null;
+  
+  return <FunctionDetail functionId={id} onBack={onBack} />;
+}
+
+// 主应用
+function App() {
+  return (
+    <Router>
+      <AppContent />
+    </Router>
   );
 }
 

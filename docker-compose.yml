@@ -1,42 +1,47 @@
 version: '3.8'
 
 services:
-  db:
-    image: postgres:15-alpine
-    container_name: agentfunchub-db
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: agentfunchub
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
-      - "5432:5432"
+      - "8000:8000"
+    environment:
+      - USE_SQLITE=true
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-in-production}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./data:/app/data
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  # 可选: pgAdmin 用于数据库管理
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: agentfunchub-pgadmin
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@agentfunchub.io
-      PGADMIN_DEFAULT_PASSWORD: admin
-      PGADMIN_CONFIG_SERVER_MODE: 'False'
+  frontend:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
     ports:
-      - "5050:80"
+      - "3000:80"
     depends_on:
-      - db
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
+      - backend
+    restart: unless-stopped
 
-volumes:
-  postgres_data:
-  pgadmin_data:
+  # 可选: PostgreSQL 数据库
+  # db:
+  #   image: postgres:15-alpine
+  #   environment:
+  #     POSTGRES_USER: agentfunchub
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+  #     POSTGRES_DB: agentfunchub
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
 
-networks:
-  default:
-    name: agentfunchub-network
+# volumes:
+#   postgres_data:

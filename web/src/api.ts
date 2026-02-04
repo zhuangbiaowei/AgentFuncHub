@@ -85,6 +85,13 @@ class ApiClient {
     });
   }
 
+  async createFunction(spec: FunctionSpec): Promise<{ success: boolean; function_id: string }> {
+    return this.request('/functions', {
+      method: 'POST',
+      body: JSON.stringify(spec),
+    });
+  }
+
   // === 认证 API ===
   async getCurrentUser(): Promise<User> {
     return this.request('/auth/me');

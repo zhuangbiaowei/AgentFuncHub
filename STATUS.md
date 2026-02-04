@@ -321,6 +321,45 @@ async with AsyncClient() as client:
 
 ---
 
+### Week 3 完成 (2026-02-04)
+
+**前端功能完善** ✅
+
+| 组件 | 状态 | 交付物 |
+|------|------|--------|
+| 函数发布页 | ✅ | `web/src/components/pages/PublishFunction.tsx` |
+| 用户中心 | ✅ | `web/src/components/pages/UserCenter.tsx` |
+| API Key 管理 | ✅ | 集成在用户中心 |
+
+**Docker 化** ✅
+
+| 组件 | 状态 | 交付物 |
+|------|------|--------|
+| 后端 Dockerfile | ✅ | `Dockerfile` |
+| 前端 Dockerfile | ✅ | `web/Dockerfile` |
+| Docker Compose | ✅ | `docker-compose.yml` |
+| Nginx 配置 | ✅ | `web/nginx.conf` |
+
+**CI/CD** ✅
+
+| 组件 | 状态 | 交付物 |
+|------|------|--------|
+| CI 工作流 | ✅ | `.github/workflows/ci.yml` |
+| Release 工作流 | ✅ | `.github/workflows/release.yml` |
+| 部署文档 | ✅ | `docs/deployment.md` |
+
+**启动命令**:
+```bash
+# 使用 Docker Compose 一键启动
+docker-compose up -d
+
+# 访问
+前端: http://localhost:3000
+后端: http://localhost:8000
+```
+
+---
+
 ## 📈 统计数据
 
 | 指标 | 数值 |
