@@ -1,0 +1,122 @@
+/** App.css */
+
+.app-layout {
+  min-height: 100vh;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: white;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.logo span {
+  white-space: nowrap;
+}
+
+.header-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: 0 24px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: white;
+  cursor: pointer;
+  padding: 4px 12px;
+  border-radius: 4px;
+  transition: background 0.3s;
+}
+
+.user-info:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.app-content {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.app-footer {
+  text-align: center;
+  background: #f0f2f5;
+}
+
+/* 首页样式 */
+.hero {
+  text-align: center;
+  padding: 60px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  margin-bottom: 40px;
+  color: white;
+}
+
+.hero h1 {
+  color: white;
+  font-size: 32px;
+  margin-bottom: 16px;
+}
+
+.hero p {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 16px;
+  margin-bottom: 32px;
+}
+
+/* 搜索视图 */
+.search-view h2 {
+  margin-bottom: 24px;
+}
+
+/* 函数详情 */
+.function-detail {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .header-center {
+    display: none;
+  }
+  
+  .hero h1 {
+    font-size: 24px;
+  }
+  
+  .app-content {
+    padding: 16px;
+  }
+}

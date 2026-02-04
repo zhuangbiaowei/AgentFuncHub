@@ -56,13 +56,37 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 @contextmanager
-def get_db() -> Generator[Session, None, None]:
+def get_db_context() -> Generator[Session, None, None]:
     """
     获取数据库会话的上下文管理器
     
     用法:
-        with get_db() as db:
+        with get_db_context() as db:
             user = db.query(User).first()
+    """
+    db = SessionLocal()
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+# 为向后兼容保留别名
+get_db = get_db_context
+
+
+def get_db_session() -> Generator[Session, None, None]:
+    """
+    获取数据库会话 (用于 FastAPI Depends)
+    
+    用法:
+        @app.get("/users")
+        def get_users(db: Session = Depends(get_db_session)):
+            return db.query(User).all()
     """
     db = SessionLocal()
     try:

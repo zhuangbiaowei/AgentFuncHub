@@ -557,6 +557,14 @@ try:
 except Exception as e:
     print(f"⚠️  Execute API not loaded: {e}")
 
+try:
+    # 认证 API
+    from api_auth import router as auth_router
+    app.include_router(auth_router)
+    print("✅ Auth API routes registered")
+except Exception as e:
+    print(f"⚠️  Auth API not loaded: {e}")
+
 
 if __name__ == "__main__":
     import uvicorn

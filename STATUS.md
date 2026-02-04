@@ -230,12 +230,41 @@ Result: ✅ Valid email format
 Duration: 56ms
 ```
 
-### Week 2 计划
+### Week 2 进行中 (2026-02-04)
 
-- [ ] 用户认证系统 (JWT + GitHub OAuth)
-- [ ] Web 前端界面 (React)
+**用户认证系统** ✅
+
+| 组件 | 状态 | 交付物 |
+|------|------|--------|
+| JWT Token | ✅ | `src/server/auth.py` |
+| GitHub OAuth | ✅ | `src/server/github_oauth.py` |
+| 用户模型 | ✅ | `src/server/database/models.py` |
+| 认证 API | ✅ | `src/server/api_auth.py` |
+
+**Web 前端界面** ✅
+
+| 组件 | 状态 | 交付物 |
+|------|------|--------|
+| React 项目 | ✅ | `web/` 目录 |
+| 函数列表 | ✅ | `web/src/components/FunctionList.tsx` |
+| 函数详情 | ✅ | `web/src/components/FunctionDetail.tsx` |
+| 用户认证 | ✅ | `web/src/App.tsx` |
+
+**API 测试**:
+```
+✅ POST /auth/register - 用户注册
+✅ GET /auth/github/login - GitHub OAuth 入口
+✅ GET /auth/me - 获取当前用户
+✅ POST /auth/api-keys - 创建 API Key
+```
+
+---
+
+### Week 2 剩余任务
+
 - [ ] Python SDK
 - [ ] 执行引擎优化
+- [ ] 集成测试
 
 ---
 
@@ -308,5 +337,5 @@ Duration: 56ms
 
 ---
 
-*最后更新: 2026-02-02 09:40*  
+*最后更新: 2026-02-04 10:10*  
 *更新者: AI学徒 1.0*
