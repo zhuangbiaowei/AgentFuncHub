@@ -1,0 +1,44 @@
+spec_version: "0.1"
+id: "text.html.entities"
+version: "1.0.0"
+name: "HTML Entities"
+description: "HTML实体编码和解码"
+language:
+  name: "python"
+  runtime: "python>=3.8"
+entrypoint:
+  kind: "inline"
+  symbol: "html_entities"
+  code: |
+    def html_entities(text: str, action: str = "encode") -> Dict:
+        html_escapes = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;',
+        }
+        if action == "encode":
+            for char, entity in html_escapes.items():
+                text = text.replace(char, entity)
+            return {"result": text, "action": "encode"}
+        else:  # decode
+            for char, entity in html_escapes.items():
+                text = text.replace(entity, char)
+            return {"result": text, "action": "decode"}
+signature:
+  inputs:
+    text: {type: "string", required: true, description: "输入文本", example: "<div>Hello & Welcome</div>"}
+    action: {type: "string", required: false, default: "encode", description: "操作(encode/decode)", example: "encode"}
+  outputs:
+    result: {type: "string", description: "处理后的文本"}
+    action: {type: "string", description: "执行的操作"}
+semantics:
+  deterministic: true
+  side_effects: ["none"]
+  purity: "pure"
+tests:
+  cases:
+    - {name: "编码HTML", input: {text: "<div>Test</div>", action: "encode"}, expect: {result: "&lt;div&gt;Test&lt;/div&gt;"}}
+    - {name: "解码HTML", input: {text: "&lt;div&gt;Test&lt;/div&gt;", action: "decode"}, expect: {result: "<div>Test</div>"}}
+tags: ["text", "html", "encoding"]

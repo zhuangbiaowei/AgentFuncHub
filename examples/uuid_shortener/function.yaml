@@ -1,0 +1,51 @@
+spec_version: "0.1"
+id: "utils.uuid.shortener"
+version: "1.0.0"
+name: "UUID Shortener"
+description: "UUID短链生成器，将长UUID转换为短字符串"
+language:
+  name: "python"
+  runtime: "python>=3.8"
+entrypoint:
+  kind: "inline"
+  symbol: "shorten_uuid"
+  code: |
+    import uuid
+    import base64
+    def shorten_uuid(long_uuid: str = None, action: str = "encode") -> Dict:
+        if action == "encode":
+            if not long_uuid:
+                long_uuid = str(uuid.uuid4())
+            # 移除横线并转换为字节
+            hex_str = long_uuid.replace('-', '')
+            bytes_data = bytes.fromhex(hex_str)
+            # Base64编码
+            short = base64.urlsafe_b64encode(bytes_data).decode().rstrip('=')
+            return {"original": long_uuid, "short": short, "length": len(short)}
+        else:  # decode
+            # 补全Base64填充
+            padding = 4 - len(long_uuid) % 4
+            if padding != 4:
+                long_uuid += '=' * padding
+            bytes_data = base64.urlsafe_b64decode(long_uuid)
+            hex_str = bytes_data.hex()
+            # 添加UUID格式的横线
+            original = f"{hex_str[:8]}-{hex_str[8:12]}-{hex_str[12:16]}-{hex_str[16:20]}-{hex_str[20:]}"
+            return {"short": long_uuid.rstrip('='), "original": original}
+signature:
+  inputs:
+    long_uuid: {type: "string", required: false, description: "UUID字符串", example: "550e8400-e29b-41d4-a716-446655440000"}
+    action: {type: "string", required: false, default: "encode", description: "操作(encode/decode)", example: "encode"}
+  outputs:
+    original: {type: "string", required: false, description: "原始UUID"}
+    short: {type: "string", description: "短链"}
+    length: {type: "integer", required: false, description: "短链长度"}
+semantics:
+  deterministic: true
+  side_effects: ["none"]
+  purity: "pure"
+tests:
+  cases:
+    - {name: "编码UUID", input: {long_uuid: "550e8400-e29b-41d4-a716-446655440000", action: "encode"}, expect: {length: 22}}
+    - {name: "自动生成", input: {action: "encode"}, expect: {length: 22}}
+tags: ["utils", "uuid", "shortener"]

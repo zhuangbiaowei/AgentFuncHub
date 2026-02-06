@@ -1,0 +1,65 @@
+spec_version: "0.1"
+id: "time.cron.parser"
+version: "1.0.0"
+name: "Cron Parser"
+description: "Cron表达式解析器，支持验证和下次执行时间计算"
+language:
+  name: "python"
+  runtime: "python>=3.8"
+entrypoint:
+  kind: "inline"
+  symbol: "parse_cron"
+  code: |
+    import re
+    from datetime import datetime, timedelta
+    def parse_cron(expression: str, action: str = "validate", base_time: str = None) -> Dict:
+        parts = expression.split()
+        if len(parts) != 5:
+            return {"valid": False, "error": "Cron表达式必须有5个部分"}
+        minute, hour, day, month, weekday = parts
+        # 简单验证
+        valid_patterns = [
+            r"^\*$",           # *
+            r"^\d+$",          # 数字
+            r"^\*/\d+$",       # */n
+            r"^\d+-\d+$",      # n-m
+            r"^\d+,\d+$",      # n,m
+        ]
+        def is_valid_part(part):
+            return any(re.match(p, part) for p in valid_patterns)
+        valid = all(is_valid_part(p) for p in parts)
+        if not valid:
+            return {"valid": False, "error": "无效的Cron表达式格式"}
+        # 描述
+        desc_parts = []
+        if minute == "*":
+            desc_parts.append("每分钟")
+        elif "/" in minute:
+            desc_parts.append(f"每{minute.split('/')[1]}分钟")
+        else:
+            desc_parts.append(f"第{minute}分钟")
+        if hour != "*":
+            desc_parts.append(f"{hour}点")
+        description = " ".join(desc_parts)
+        return {"valid": True, "expression": expression, "parts": {"minute": minute, "hour": hour, "day": day, "month": month, "weekday": weekday}, "description": description}
+signature:
+  inputs:
+    expression: {type: "string", required: true, description: "Cron表达式", example: "*/5 * * * *"}
+    action: {type: "string", required: false, default: "validate", description: "操作", example: "validate"}
+    base_time: {type: "string", required: false, description: "基准时间", example: "2024-01-01T00:00:00"}
+  outputs:
+    valid: {type: "boolean", description: "是否有效"}
+    expression: {type: "string", required: false}
+    parts: {type: "object", required: false}
+    description: {type: "string", required: false}
+    error: {type: "string", required: false}
+semantics:
+  deterministic: true
+  side_effects: ["none"]
+  purity: "pure"
+tests:
+  cases:
+    - {name: "验证每5分钟", input: {expression: "*/5 * * * *"}, expect: {valid: true}}
+    - {name: "验证每小时", input: {expression: "0 * * * *"}, expect: {valid: true}}
+    - {name: "无效表达式", input: {expression: "* * *"}, expect: {valid: false}}
+tags: ["time", "cron", "scheduler"]

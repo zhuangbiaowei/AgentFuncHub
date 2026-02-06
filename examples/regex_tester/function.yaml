@@ -1,0 +1,56 @@
+spec_version: "0.1"
+id: "text.regex.tester"
+version: "1.0.0"
+name: "Regex Tester"
+description: "正则表达式测试器，支持匹配、替换和分组提取"
+language:
+  name: "python"
+  runtime: "python>=3.8"
+entrypoint:
+  kind: "inline"
+  symbol: "regex_test"
+  code: |
+    import re
+    from typing import List, Dict
+    def regex_test(pattern: str, text: str, action: str = "match", flags: int = 0, replacement: str = None) -> Dict:
+        try:
+            compiled = re.compile(pattern, flags)
+            if action == "match":
+                match = compiled.search(text)
+                if match:
+                    return {"matched": True, "groups": match.groups(), "start": match.start(), "end": match.end()}
+                return {"matched": False}
+            elif action == "findall":
+                matches = compiled.findall(text)
+                return {"matches": matches, "count": len(matches)}
+            elif action == "replace":
+                result = compiled.sub(replacement or "", text)
+                return {"result": result, "original": text}
+            elif action == "split":
+                parts = compiled.split(text)
+                return {"parts": parts, "count": len(parts)}
+        except re.error as e:
+            return {"error": str(e)}
+signature:
+  inputs:
+    pattern: {type: "string", required: true, description: "正则表达式", example: "\\d+"}
+    text: {type: "string", required: true, description: "待匹配文本", example: "abc123def456"}
+    action: {type: "string", required: false, default: "match", description: "操作(match/findall/replace/split)", example: "findall"}
+    flags: {type: "integer", required: false, default: 0, description: "正则标志", example: 0}
+    replacement: {type: "string", required: false, description: "替换字符串", example: "XXX"}
+  outputs:
+    matched: {type: "boolean", required: false}
+    groups: {type: "array", required: false}
+    matches: {type: "array", required: false}
+    result: {type: "string", required: false}
+    error: {type: "string", required: false}
+semantics:
+  deterministic: true
+  side_effects: ["none"]
+  purity: "pure"
+tests:
+  cases:
+    - {name: "匹配数字", input: {pattern: "\\d+", text: "abc123", action: "match"}, expect: {matched: true}}
+    - {name: "查找所有", input: {pattern: "\\d+", text: "a1b2c3", action: "findall"}, expect: {matches: ["1", "2", "3"]}}
+    - {name: "替换", input: {pattern: "\\d+", text: "abc123", action: "replace", replacement: "XXX"}, expect: {result: "abcXXX"}}
+tags: ["text", "regex", "pattern"]

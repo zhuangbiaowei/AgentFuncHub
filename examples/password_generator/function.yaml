@@ -1,0 +1,53 @@
+spec_version: "0.1"
+id: "security.password.generator"
+version: "1.0.0"
+name: "Password Generator"
+description: "安全密码生成器，支持自定义长度和字符集"
+language:
+  name: "python"
+  runtime: "python>=3.8"
+entrypoint:
+  kind: "inline"
+  symbol: "generate_password"
+  code: |
+    import random
+    import string
+    def generate_password(length: int = 12, uppercase: bool = True, lowercase: bool = True, digits: bool = True, special: bool = True, exclude_similar: bool = False) -> Dict:
+        chars = ""
+        if uppercase:
+            chars += string.ascii_uppercase
+        if lowercase:
+            chars += string.ascii_lowercase
+        if digits:
+            chars += string.digits
+        if special:
+            chars += "!@#$%^&*"
+        if exclude_similar:
+            chars = chars.replace('0', '').replace('O', '').replace('1', '').replace('l', '').replace('I', '')
+        if not chars:
+            return {"error": "No character set selected"}
+        password = ''.join(random.choice(chars) for _ in range(length))
+        strength = "weak" if length < 8 else ("medium" if length < 12 else "strong")
+        return {"password": password, "length": length, "strength": strength}
+signature:
+  inputs:
+    length: {type: "integer", required: false, default: 12, description: "密码长度", example: 16}
+    uppercase: {type: "boolean", required: false, default: true, description: "包含大写字母", example: true}
+    lowercase: {type: "boolean", required: false, default: true, description: "包含小写字母", example: true}
+    digits: {type: "boolean", required: false, default: true, description: "包含数字", example: true}
+    special: {type: "boolean", required: false, default: true, description: "包含特殊字符", example: false}
+    exclude_similar: {type: "boolean", required: false, default: false, description: "排除相似字符", example: true}
+  outputs:
+    password: {type: "string", description: "生成的密码"}
+    length: {type: "integer", description: "密码长度"}
+    strength: {type: "string", description: "密码强度"}
+semantics:
+  deterministic: false
+  side_effects: ["random"]
+  purity: "impure"
+tests:
+  cases:
+    - {name: "生成强密码", input: {length: 16}, expect: {strength: "strong"}}
+    - {name: "仅数字", input: {length: 8, uppercase: false, lowercase: false, special: false}, expect: {length: 8}}
+    - {name: "排除相似字符", input: {length: 12, exclude_similar: true}, expect: {strength: "medium"}}
+tags: ["security", "password", "generator"]

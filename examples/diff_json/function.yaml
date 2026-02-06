@@ -1,0 +1,62 @@
+spec_version: "0.1"
+id: "data.diff.json"
+version: "1.0.0"
+name: "JSON Diff"
+description: "JSON差异比较器，找出两个JSON对象之间的差异"
+language:
+  name: "python"
+  runtime: "python>=3.8"
+entrypoint:
+  kind: "inline"
+  symbol: "diff_json"
+  code: |
+    from typing import Dict, List, Any
+    def diff_json(old: Dict, new: Dict, path: str = "") -> Dict:
+        added = []
+        removed = []
+        modified = []
+        def compare(o, n, current_path):
+            if type(o) != type(n):
+                modified.append({"path": current_path, "old": o, "new": n})
+                return
+            if isinstance(o, dict):
+                all_keys = set(o.keys()) | set(n.keys())
+                for k in all_keys:
+                    new_path = f"{current_path}.{k}" if current_path else k
+                    if k not in o:
+                        added.append({"path": new_path, "value": n[k]})
+                    elif k not in n:
+                        removed.append({"path": new_path, "value": o[k]})
+                    else:
+                        compare(o[k], n[k], new_path)
+            elif isinstance(o, list):
+                if len(o) != len(n):
+                    modified.append({"path": current_path, "old_length": len(o), "new_length": len(n)})
+                else:
+                    for i, (ov, nv) in enumerate(zip(o, n)):
+                        new_path = f"{current_path}[{i}]"
+                        compare(ov, nv, new_path)
+            elif o != n:
+                modified.append({"path": current_path, "old": o, "new": n})
+        compare(old, new, path)
+        return {"added": added, "removed": removed, "modified": modified, "has_changes": bool(added or removed or modified), "total_changes": len(added) + len(removed) + len(modified)}
+signature:
+  inputs:
+    old: {type: "object", required: true, description: "旧JSON", example: {"name": "John", "age": 30}}
+    new: {type: "object", required: true, description: "新JSON", example: {"name": "John", "age": 31}}
+  outputs:
+    added: {type: "array", description: "新增字段"}
+    removed: {type: "array", description: "删除字段"}
+    modified: {type: "array", description: "修改字段"}
+    has_changes: {type: "boolean", description: "是否有变化"}
+    total_changes: {type: "integer", description: "总变化数"}
+semantics:
+  deterministic: true
+  side_effects: ["none"]
+  purity: "pure"
+tests:
+  cases:
+    - {name: "简单差异", input: {old: {"a": 1}, new: {"a": 2}}, expect: {has_changes: true, total_changes: 1}}
+    - {name: "新增字段", input: {old: {}, new: {"b": 2}}, expect: {has_changes: true, added: [{"path": "b", "value": 2}]}}
+    - {name: "无变化", input: {old: {"a": 1}, new: {"a": 1}}, expect: {has_changes: false}}
+tags: ["data", "json", "diff", "compare"]

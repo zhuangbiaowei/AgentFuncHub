@@ -1,0 +1,62 @@
+spec_version: "0.1"
+id: "utils.data.validator"
+version: "1.0.0"
+name: "Data Validator"
+description: "数据验证器，支持多种数据类型和规则的验证"
+language:
+  name: "python"
+  runtime: "python>=3.8"
+entrypoint:
+  kind: "inline"
+  symbol: "validate_data"
+  code: |
+    import re
+    from typing import Any, Dict, List
+    def validate_data(data: Any, rules: Dict) -> Dict:
+        errors = []
+        if rules.get("type") == "string":
+            if not isinstance(data, str):
+                errors.append("Must be string")
+            else:
+                if "min_length" in rules and len(data) < rules["min_length"]:
+                    errors.append(f"Min length {rules['min_length']}")
+                if "max_length" in rules and len(data) > rules["max_length"]:
+                    errors.append(f"Max length {rules['max_length']}")
+                if "pattern" in rules and not re.match(rules["pattern"], data):
+                    errors.append("Pattern mismatch")
+        elif rules.get("type") == "number":
+            if not isinstance(data, (int, float)):
+                errors.append("Must be number")
+            else:
+                if "min" in rules and data < rules["min"]:
+                    errors.append(f"Min value {rules['min']}")
+                if "max" in rules and data > rules["max"]:
+                    errors.append(f"Max value {rules['max']}")
+        elif rules.get("type") == "array":
+            if not isinstance(data, list):
+                errors.append("Must be array")
+            else:
+                if "min_items" in rules and len(data) < rules["min_items"]:
+                    errors.append(f"Min items {rules['min_items']}")
+        elif rules.get("type") == "email":
+            pattern = r'^[\w\.-]+@[\w\.-]+\.\w+$'
+            if not re.match(pattern, str(data)):
+                errors.append("Invalid email")
+        return {"valid": len(errors) == 0, "errors": errors if errors else None}
+signature:
+  inputs:
+    data: {type: "any", required: true, description: "待验证数据", example: "test@example.com"}
+    rules: {type: "object", required: true, description: "验证规则", example: {"type": "email"}}
+  outputs:
+    valid: {type: "boolean", description: "是否有效"}
+    errors: {type: "array", required: false, description: "错误列表"}
+semantics:
+  deterministic: true
+  side_effects: ["none"]
+  purity: "pure"
+tests:
+  cases:
+    - {name: "验证邮箱", input: {data: "test@example.com", rules: {type: "email"}}, expect: {valid: true}}
+    - {name: "验证字符串长度", input: {data: "hello", rules: {type: "string", min_length: 3, max_length: 10}}, expect: {valid: true}}
+    - {name: "验证数字范围", input: {data: 50, rules: {type: "number", min: 0, max: 100}}, expect: {valid: true}}
+tags: ["utils", "validation", "data"]
