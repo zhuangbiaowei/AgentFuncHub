@@ -282,7 +282,7 @@ async def create_function(spec: FunctionSpec):
         hash_val = hashlib.sha256(code_source.encode()).hexdigest()[:16]
     
     # 存储函数
-    func_data = spec.dict()
+    func_data = spec.model_dump()
     functions_db[spec.id] = func_data
     save_functions()
     

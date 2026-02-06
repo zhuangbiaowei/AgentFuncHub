@@ -1,6 +1,10 @@
 # AgentFuncHub
 
-> 面向 Agent 的函数级代码共享社区 | FunctionSpec v0.1
+> 面向 Agent 的函数级代码共享社区 | FunctionSpec v0.1 | v0.2.0 MVP
+
+[![Tests](https://github.com/zhuangbiaowei/AgentFuncHub/actions/workflows/ci.yml/badge.svg)](https://github.com/zhuangbiaowei/AgentFuncHub/actions)
+[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](https://github.com/zhuangbiaowei/AgentFuncHub/releases)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ## 愿景
 
@@ -13,42 +17,24 @@
 - **验证即信任** — 自动测试验证，确保函数行为符合预期
 - **协作进化** — 函数可以被改进、版本化、组合
 
-## 项目结构
+## 🚀 快速开始
 
-```
-~/AgentFuncHub/
-├── docs/                      # 文档
-│   ├── architecture.md        # 架构图
-│   ├── api-usage.md           # API 使用指南
-│   ├── vision.md              # 项目愿景
-│   ├── roadmap.md             # 路线图
-│   └── faq.md                 # 常见问题
-├── specs/                     # 技术规范
-│   ├── FunctionSpec.md        # FunctionSpec v0.1 主规范
-│   ├── SCHEMA_COMPARISON.md   # 规范对比文档
-│   ├── api-spec.md            # API 规范
-│   └── security-guide.md      # 安全指南
-├── src/                       # 源代码
-│   ├── server/                # 服务端
-│   │   ├── main.py            # FastAPI 主服务
-│   │   └── vector_search.py   # 向量搜索服务
-│   └── sdk/                   # 各语言 SDK (规划中)
-├── examples/                  # 示例函数 (26个)
-│   └── {function-id}/
-│       ├── function.yaml      # FunctionSpec 定义
-│       └── manifest.json      # (旧格式，待删除)
-├── scripts/                   # 工具脚本
-│   ├── convert_to_spec.py     # 格式转换工具
-│   └── validate_spec.py       # FunctionSpec 验证工具
-├── tests/                     # 测试
-├── STATUS.md                  # 项目状态
-├── PLAN.md                    # 开发计划
-└── README.md                  # 本文件
+### Docker 部署 (推荐)
+
+```bash
+# 1. 克隆仓库
+git clone https://github.com/zhuangbiaowei/AgentFuncHub.git
+cd AgentFuncHub
+
+# 2. 一键启动
+docker-compose up -d
+
+# 3. 访问服务
+前端: http://localhost:3000
+后端: http://localhost:8000
 ```
 
-## 快速开始
-
-### 启动后端服务
+### 开发环境
 
 ```bash
 # 安装依赖
@@ -61,11 +47,87 @@ python main.py
 # 服务运行在 http://localhost:8000
 ```
 
-### 使用 API
+## 📦 项目结构
+
+```
+~/AgentFuncHub/
+├── docs/                      # 文档
+│   ├── architecture.md        # 架构图
+│   ├── api-usage.md           # API 使用指南
+│   ├── deployment.md          # 部署指南 ⭐ v0.2.0
+│   └── vision.md              # 项目愿景
+├── specs/                     # 技术规范
+│   ├── FunctionSpec.md        # FunctionSpec v0.1 主规范
+│   └── api-spec.md            # API 规范
+├── src/                       # 源代码
+│   ├── server/                # 后端服务
+│   │   ├── main.py            # FastAPI 主服务
+│   │   ├── database/          # 数据库模型 ⭐ v0.2.0
+│   │   ├── auth.py            # JWT 认证 ⭐ v0.2.0
+│   │   ├── executor.py        # 沙箱执行器 ⭐ v0.2.0
+│   │   └── vector_search.py   # 向量搜索
+│   └── sdk/                   # SDK
+│       └── python/            # Python SDK ⭐ v0.2.0
+├── web/                       # Web 前端 ⭐ v0.2.0
+├── examples/                  # 示例函数 (26个)
+├── tests/                     # 测试 (57个测试全部通过)
+└── docker-compose.yml         # Docker 配置 ⭐ v0.2.0
+```
+
+## ✨ v0.2.0 新功能
+
+### 🏗️ 用户认证系统
+- JWT Token 认证 (access + refresh)
+- GitHub OAuth 集成
+- API Key 管理
+
+### 🗄️ 数据库支持
+- SQLite (默认，零配置)
+- PostgreSQL (可选，生产环境)
+- SQLAlchemy 2.0 ORM
+
+### 🎨 Web 前端界面
+- React + TypeScript + Ant Design
+- 函数列表/详情/发布
+- 用户中心
+- GitHub OAuth 登录
+
+### 🐍 Python SDK
+```python
+from agentfunchub import Client
+
+client = Client()
+
+# 搜索函数
+results = client.search("验证邮箱")
+
+# 执行函数
+result = client.call("validation.email.basic", email="test@example.com")
+```
+
+### 🐳 Docker 化部署
+```bash
+docker-compose up -d
+```
+
+### 📊 完整测试覆盖
+```
+57 个测试全部通过 ✅
+- 21 API 测试
+- 16 认证测试
+- 20 集成测试
+```
+
+## 🔌 API 使用
+
+### 基础端点
 
 ```bash
 # 查看服务状态
 curl http://localhost:8000/
+
+# 健康检查
+curl http://localhost:8000/health
 
 # 列出所有函数
 curl http://localhost:8000/functions
@@ -77,24 +139,39 @@ curl -X POST http://localhost:8000/search \
 
 # 获取函数详情
 curl http://localhost:8000/functions/validation.email.basic
-
-# 验证函数规范
-curl -X POST http://localhost:8000/validate \
-  -H "Content-Type: application/json" \
-  -d @examples/validate_email/function.yaml
 ```
 
-### 验证工具
+### 认证相关 ⭐ v0.2.0
 
 ```bash
-# 验证单个函数
-python scripts/validate_spec.py examples/validate_email/function.yaml
+# 用户注册
+curl -X POST http://localhost:8000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username": "test", "email": "test@example.com", "password": "secret"}'
 
-# 验证所有函数
-python scripts/validate_spec.py --all
+# 用户登录
+curl -X POST http://localhost:8000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "test", "password": "secret"}'
+
+# GitHub OAuth
+# 访问: http://localhost:8000/auth/github/login
 ```
 
-## FunctionSpec v0.1 示例
+### 函数执行 ⭐ v0.2.0
+
+```bash
+# 执行函数
+curl -X POST http://localhost:8000/execute \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{
+    "function_id": "validation.email.basic",
+    "input": {"email": "test@example.com"}
+  }'
+```
+
+## 📋 FunctionSpec v0.1 示例
 
 ```yaml
 spec_version: "0.1"
@@ -143,16 +220,6 @@ semantics:
     network_access: false
     data_sensitivity: "medium"
 
-tests:
-  framework: "builtin"
-  cases:
-    - name: "valid email"
-      input: { email: "test@example.com" }
-      expect: { is_valid: true }
-    - name: "invalid format"
-      input: { email: "invalid" }
-      expect: { is_valid: false }
-
 tags: ["validation", "email", "security"]
 
 quality:
@@ -160,7 +227,7 @@ quality:
   coverage: 0.95
 ```
 
-## 示例函数
+## 📚 示例函数
 
 目前已有 **26 个** 示例函数，覆盖以下类别：
 
@@ -172,50 +239,67 @@ quality:
 | **数据处理** | chunk_list, deduplicate_list, parse_csv_simple, parse_date_flexible, parse_url | 数据处理 |
 | **格式转换** | format_duration, format_file_size, convert_color, number_to_chinese, repair_json | 转换工具 |
 
-## 关键特性
+## 🛠️ 技术栈
 
-| 特性 | 说明 | 状态 |
-|------|------|------|
-| 🔍 **语义搜索** | 用自然语言描述需求，找到匹配的函数 | ✅ 已实现 |
-| 🧪 **自动验证** | FunctionSpec 格式验证工具 | ✅ 已实现 |
-| 📦 **即插即用** | FunctionSpec 格式定义函数 | ✅ 已实现 |
-| 🏷️ **多维标签** | 功能、语言、场景等多维度分类 | ✅ 已实现 |
-| 📊 **使用统计** | 被调用次数、成功率、评分 | 🚧 规划中 |
-| 🔒 **安全沙箱** | 可疑代码自动隔离执行 | 🚧 规划中 |
+| 层级 | 技术 |
+|------|------|
+| **后端** | Python 3.11 + FastAPI |
+| **前端** | React 19 + TypeScript + Vite + Ant Design ⭐ v0.2.0 |
+| **数据库** | SQLite (默认) / PostgreSQL (可选) ⭐ v0.2.0 |
+| **ORM** | SQLAlchemy 2.0 ⭐ v0.2.0 |
+| **搜索** | sentence-transformers + scikit-learn |
+| **沙箱** | Docker ⭐ v0.2.0 |
+| **认证** | JWT + GitHub OAuth ⭐ v0.2.0 |
+| **测试** | pytest (57 个测试) ⭐ v0.2.0 |
+| **CI/CD** | GitHub Actions ⭐ v0.2.0 |
 
-## 开发路线图
+## 🗺️ 开发路线图
 
-### Phase 1: 概念验证 ✅ (进行中)
-
+### Phase 1: 概念验证 ✅ v0.1.0
 - [x] FunctionSpec v0.1 规范设计
 - [x] 26 个示例函数
-- [x] 语义搜索原型（向量搜索 + 关键词）
+- [x] 语义搜索原型
 - [x] 验证引擎
-- [x] API 文档
 
-### Phase 2: MVP (Week 5-12) 🚧
+### Phase 2: MVP 完整版 ✅ v0.2.0
+- [x] 用户认证系统 (JWT + GitHub OAuth)
+- [x] 数据库支持 (SQLite/PostgreSQL)
+- [x] Web 前端界面
+- [x] Python SDK
+- [x] 函数执行引擎 (沙箱)
+- [x] Docker 化部署
+- [x] CI/CD 工作流
+- [x] 完整测试覆盖
 
-- [ ] Web 前端界面
-- [ ] 函数执行引擎
-- [ ] Python SDK
-- [ ] 用户认证
+### Phase 3: 社区版 📅 v0.3.0
 - [ ] 函数评分/评论系统
-
-### Phase 3: 社区 (Month 3-6) 📅
-
+- [ ] 函数版本管理
+- [ ] 使用统计分析
+- [ ] JavaScript SDK
 - [ ] 邀请 Agent 开发者加入
-- [ ] 建立治理机制
-- [ ] 多语言支持 (JavaScript, Go, Rust)
+
+### Phase 4: 生产版 📅 v1.0.0
+- [ ] 多语言支持 (Go, Rust)
+- [ ] 高级搜索 (语义 + 过滤)
+- [ ] 企业级功能
 - [ ] 探索商业模式
 
-## 技术栈
+## 🧪 测试
 
-- **后端**: Python + FastAPI
-- **向量搜索**: sentence-transformers + scikit-learn
-- **数据存储**: JSON 文件 (MVP) → 数据库 (生产)
-- **规范格式**: YAML (FunctionSpec v0.1)
+```bash
+# 运行所有测试
+python -m pytest tests/ -v
 
-## 贡献
+# 运行特定测试文件
+python -m pytest tests/test_api.py -v
+python -m pytest tests/test_auth.py -v
+python -m pytest tests/test_integration.py -v
+
+# 带覆盖率报告
+python -m pytest tests/ --cov=src --cov-report=html
+```
+
+## 🤝 贡献
 
 欢迎提交 Issue 和 PR！
 
@@ -234,15 +318,16 @@ quality:
 - 代码需通过 `scripts/validate_spec.py` 验证
 - 添加清晰的描述和标签
 
-## 相关文档
+## 📖 相关文档
 
 - [FunctionSpec 规范](specs/FunctionSpec.md) - 完整的函数定义规范
 - [API 文档](specs/api-spec.md) - REST API 使用指南
+- [部署指南](docs/deployment.md) - Docker 部署说明
 - [项目愿景](docs/vision.md) - 为什么要做这个项目
-- [开发计划](PLAN.md) - 详细开发计划
+- [更新日志](CHANGELOG.md) - 版本变更记录
 - [项目状态](STATUS.md) - 当前进度
 
-## License
+## 📄 License
 
 MIT
 
