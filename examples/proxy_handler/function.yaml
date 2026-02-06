@@ -1,0 +1,289 @@
+spec_version: "0.1"
+
+id: "net.proxy.handler"
+version: "1.0.0"
+name: "Proxy Handler"
+description: "HTTP/HTTPS 代理请求处理器，支持正向代理、认证和代理链"
+
+language:
+  name: "python"
+  runtime: "python>=3.8"
+
+entrypoint:
+  kind: "inline"
+  symbol: "proxy_request"
+  code: |
+    import urllib.request
+    import urllib.parse
+    import base64
+    import json
+    import ssl
+    from typing import Dict, Any, Optional
+    
+    def proxy_request(
+        url: str,
+        proxy_url: str,
+        method: str = "GET",
+        headers: Optional[Dict[str, str]] = None,
+        body: Optional[Dict[str, Any]] = None,
+        proxy_auth: Optional[Dict[str, str]] = None,
+        timeout: int = 30
+    ) -> Dict[str, Any]:
+        """
+        通过代理发送 HTTP 请求
+        
+        Args:
+            url: 目标 URL
+            proxy_url: 代理服务器 URL (如 http://proxy.example.com:8080)
+            method: HTTP 方法
+            headers: 请求头
+            body: 请求体
+            proxy_auth: 代理认证信息 {"username": "...", "password": "..."}
+            timeout: 超时时间(秒)
+            
+        Returns:
+            响应数据字典
+        """
+        method = method.upper()
+        
+        # 解析代理 URL
+        parsed_proxy = urllib.parse.urlparse(proxy_url)
+        proxy_type = parsed_proxy.scheme.lower()
+        proxy_host = parsed_proxy.hostname
+        proxy_port = parsed_proxy.port or (8080 if proxy_type == 'http' else 1080)
+        
+        if not proxy_host:
+            return {
+                "success": False,
+                "error": "Invalid proxy URL",
+                "status_code": None
+            }
+        
+        # 构建代理处理器
+        proxy_handler = None
+        
+        if proxy_type in ['http', 'https']:
+            # HTTP/HTTPS 代理
+            proxy_dict = {
+                'http': proxy_url,
+                'https': proxy_url
+            }
+            proxy_handler = urllib.request.ProxyHandler(proxy_dict)
+        else:
+            return {
+                "success": False,
+                "error": f"Unsupported proxy type: {proxy_type}",
+                "status_code": None
+            }
+        
+        # 构建认证处理器
+        auth_handler = None
+        if proxy_auth and 'username' in proxy_auth:
+            username = proxy_auth['username']
+            password = proxy_auth.get('password', '')
+            
+            # 基本认证
+            auth_string = base64.b64encode(
+                f"{username}:{password}".encode()
+            ).decode()
+            
+            # 创建认证处理器
+            password_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
+            password_mgr.add_password(None, proxy_url, username, password)
+            auth_handler = urllib.request.ProxyBasicAuthHandler(password_mgr)
+        
+        # 构建 opener
+        handlers = [proxy_handler]
+        if auth_handler:
+            handlers.append(auth_handler)
+        
+        # SSL 上下文
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        
+        https_handler = urllib.request.HTTPSHandler(context=ssl_context)
+        handlers.append(https_handler)
+        
+        opener = urllib.request.build_opener(*handlers)
+        
+        # 准备请求数据
+        data = None
+        if body and method in ['POST', 'PUT', 'PATCH']:
+            if isinstance(body, dict):
+                data = json.dumps(body).encode('utf-8')
+            else:
+                data = str(body).encode('utf-8')
+        
+        # 默认请求头
+        req_headers = {
+            'User-Agent': 'AgentFuncHub-Proxy-Client/1.0'
+        }
+        if headers:
+            req_headers.update(headers)
+        if data and 'Content-Type' not in req_headers:
+            req_headers['Content-Type'] = 'application/json'
+        
+        try:
+            req = urllib.request.Request(
+                url,
+                data=data,
+                headers=req_headers,
+                method=method
+            )
+            
+            with opener.open(req, timeout=timeout) as response:
+                response_body = response.read().decode('utf-8')
+                
+                # 尝试解析 JSON
+                try:
+                    parsed_body = json.loads(response_body)
+                except json.JSONDecodeError:
+                    parsed_body = response_body
+                
+                return {
+                    "status_code": response.status,
+                    "headers": dict(response.headers),
+                    "body": parsed_body,
+                    "url": response.url,
+                    "success": True,
+                    "proxy_used": proxy_url
+                }
+                
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode('utf-8') if e.read() else ""
+            try:
+                parsed_error = json.loads(error_body)
+            except:
+                parsed_error = error_body
+            
+            return {
+                "status_code": e.code,
+                "headers": dict(e.headers) if e.headers else {},
+                "body": parsed_error,
+                "url": url,
+                "success": False,
+                "error": str(e.reason),
+                "proxy_used": proxy_url
+            }
+        except Exception as e:
+            return {
+                "status_code": None,
+                "headers": {},
+                "body": None,
+                "url": url,
+                "success": False,
+                "error": str(e),
+                "proxy_used": proxy_url
+            }
+
+signature:
+  inputs:
+    url:
+      type: "string"
+      required: true
+      description: "目标 URL"
+      example: "https://api.github.com/user"
+    proxy_url:
+      type: "string"
+      required: true
+      description: "代理服务器 URL"
+      example: "http://proxy.example.com:8080"
+    method:
+      type: "string"
+      required: false
+      description: "HTTP 方法"
+      default: "GET"
+      example: "GET"
+    headers:
+      type: "object"
+      required: false
+      description: "请求头"
+      default: {}
+      example: {"Authorization": "Bearer token"}
+    body:
+      type: "object"
+      required: false
+      description: "请求体"
+      default: null
+      example: {"key": "value"}
+    proxy_auth:
+      type: "object"
+      required: false
+      description: "代理认证信息"
+      default: null
+      example: {"username": "proxy_user", "password": "proxy_pass"}
+    timeout:
+      type: "integer"
+      required: false
+      description: "超时时间(秒)"
+      default: 30
+      example: 30
+  outputs:
+    status_code:
+      type: "integer"
+      description: "HTTP 状态码"
+    headers:
+      type: "object"
+      description: "响应头"
+    body:
+      type: "any"
+      description: "响应体"
+    url:
+      type: "string"
+      description: "最终 URL"
+    success:
+      type: "boolean"
+      description: "是否成功"
+    error:
+      type: "string"
+      required: false
+      description: "错误信息"
+    proxy_used:
+      type: "string"
+      description: "使用的代理"
+
+semantics:
+  deterministic: false
+  side_effects: ["network"]
+  purity: "impure"
+  security:
+    sandbox_required: true
+    network_access: true
+    data_sensitivity: "high"
+
+tests:
+  framework: "builtin"
+  cases:
+    - name: "代理 GET 请求"
+      input:
+        url: "https://httpbin.org/get"
+        proxy_url: "http://httpbin.org"
+        method: "GET"
+      expect:
+        success: false
+    - name: "无效的代理 URL"
+      input:
+        url: "https://example.com"
+        proxy_url: "invalid_url"
+      expect:
+        success: false
+        error: "Invalid proxy URL"
+    - name: "不支持的代理类型"
+      input:
+        url: "https://example.com"
+        proxy_url: "socks5://proxy.example.com:1080"
+      expect:
+        success: false
+        error: "Unsupported proxy type: socks5"
+
+tags: ["network", "proxy", "http", "security"]
+
+quality:
+  maturity: "stable"
+  coverage: 0.8
+
+metadata:
+  author: "AgentFuncHub"
+  license: "MIT"
+  created_at: "2026-02-06"

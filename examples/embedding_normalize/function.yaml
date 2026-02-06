@@ -1,0 +1,322 @@
+spec_version: "0.1"
+
+id: "ai.embedding.normalize"
+version: "1.0.0"
+name: "Embedding Normalizer"
+description: "向量归一化工具，支持L2归一化、L1归一化、Max归一化和Z-score标准化，用于AI嵌入向量处理"
+
+language:
+  name: "python"
+  runtime: "python>=3.8"
+
+entrypoint:
+  kind: "inline"
+  symbol: "normalize_embedding"
+  code: |
+    import math
+    from typing import Dict, Any, List, Union
+    
+    def normalize_embedding(
+        vector: List[float],
+        method: str = "l2",
+        return_stats: bool = True
+    ) -> Dict[str, Any]:
+        """
+        对向量进行归一化处理
+        
+        Args:
+            vector: 输入向量（浮点数列表）
+            method: 归一化方法 (l2, l1, max, zscore, minmax)
+            return_stats: 是否返回统计信息
+            
+        Returns:
+            包含归一化后向量和统计信息的字典
+        """
+        if not vector:
+            return {
+                "normalized": [],
+                "original_dim": 0,
+                "method": method,
+                "success": False,
+                "error": "Empty vector provided"
+            }
+        
+        if not all(isinstance(x, (int, float)) for x in vector):
+            return {
+                "normalized": [],
+                "original_dim": len(vector),
+                "method": method,
+                "success": False,
+                "error": "Vector must contain only numeric values"
+            }
+        
+        original_dim = len(vector)
+        
+        # 转换为浮点数
+        vec = [float(x) for x in vector]
+        
+        # 计算统计信息
+        stats = {}
+        if return_stats:
+            stats["mean"] = sum(vec) / len(vec)
+            stats["min"] = min(vec)
+            stats["max"] = max(vec)
+            variance = sum((x - stats["mean"]) ** 2 for x in vec) / len(vec)
+            stats["std"] = math.sqrt(variance)
+            stats["sum"] = sum(vec)
+        
+        normalized = []
+        norm_value = 0.0
+        
+        if method == "l2":
+            # L2 归一化 (Euclidean norm)
+            # ||v||_2 = sqrt(sum(v_i^2))
+            sum_squares = sum(x ** 2 for x in vec)
+            norm_value = math.sqrt(sum_squares)
+            
+            if norm_value > 0:
+                normalized = [x / norm_value for x in vec]
+            else:
+                normalized = vec.copy()
+                
+        elif method == "l1":
+            # L1 归一化 (Manhattan norm)
+            # ||v||_1 = sum(|v_i|)
+            norm_value = sum(abs(x) for x in vec)
+            
+            if norm_value > 0:
+                normalized = [x / norm_value for x in vec]
+            else:
+                normalized = vec.copy()
+                
+        elif method == "max":
+            # Max 归一化
+            # ||v||_inf = max(|v_i|)
+            abs_values = [abs(x) for x in vec]
+            norm_value = max(abs_values) if abs_values else 0
+            
+            if norm_value > 0:
+                normalized = [x / norm_value for x in vec]
+            else:
+                normalized = vec.copy()
+                
+        elif method == "zscore":
+            # Z-score 标准化
+            # z_i = (x_i - mean) / std
+            mean = stats.get("mean", sum(vec) / len(vec))
+            variance = sum((x - mean) ** 2 for x in vec) / len(vec)
+            std = math.sqrt(variance)
+            
+            if std > 0:
+                normalized = [(x - mean) / std for x in vec]
+                norm_value = std
+            else:
+                normalized = [0.0] * len(vec)
+                
+        elif method == "minmax":
+            # Min-Max 归一化到 [0, 1]
+            # x' = (x - min) / (max - min)
+            min_val = min(vec)
+            max_val = max(vec)
+            range_val = max_val - min_val
+            
+            if range_val > 0:
+                normalized = [(x - min_val) / range_val for x in vec]
+                norm_value = range_val
+            else:
+                normalized = [0.5] * len(vec)  # 如果所有值相同，设为0.5
+                
+        elif method == "softmax":
+            # Softmax 归一化
+            # x'_i = exp(x_i) / sum(exp(x_j))
+            # 为了数值稳定性，减去最大值
+            max_val = max(vec)
+            exp_vals = [math.exp(x - max_val) for x in vec]
+            sum_exp = sum(exp_vals)
+            normalized = [x / sum_exp for x in exp_vals]
+            norm_value = sum_exp
+            
+        else:
+            return {
+                "normalized": vec,
+                "original_dim": original_dim,
+                "method": method,
+                "success": False,
+                "error": f"Unknown normalization method: {method}"
+            }
+        
+        # 验证归一化后的向量
+        verification = {}
+        if method == "l2":
+            l2_norm = math.sqrt(sum(x ** 2 for x in normalized))
+            verification["l2_norm"] = round(l2_norm, 6)
+            verification["is_unit_vector"] = abs(l2_norm - 1.0) < 1e-6 or norm_value == 0
+        elif method == "l1":
+            l1_norm = sum(abs(x) for x in normalized)
+            verification["l1_norm"] = round(l1_norm, 6)
+        elif method == "softmax":
+            sum_val = sum(normalized)
+            verification["sum"] = round(sum_val, 6)
+            verification["is_probability"] = abs(sum_val - 1.0) < 1e-6
+        
+        result = {
+            "normalized": normalized,
+            "original_dim": original_dim,
+            "method": method,
+            "success": True,
+            "norm_value": round(norm_value, 6) if norm_value != 0 else 0
+        }
+        
+        if return_stats:
+            result["stats"] = {k: round(v, 6) for k, v in stats.items()}
+        
+        if verification:
+            result["verification"] = verification
+            
+        return result
+
+signature:
+  inputs:
+    vector:
+      type: "array"
+      required: true
+      description: "输入向量（浮点数列表）"
+      example: [3.0, 4.0, 0.0]
+    method:
+      type: "string"
+      required: false
+      description: "归一化方法 (l2, l1, max, zscore, minmax, softmax)"
+      default: "l2"
+      example: "l2"
+    return_stats:
+      type: "boolean"
+      required: false
+      description: "是否返回统计信息"
+      default: true
+      example: true
+  outputs:
+    normalized:
+      type: "array"
+      description: "归一化后的向量"
+    original_dim:
+      type: "integer"
+      description: "原始向量维度"
+    method:
+      type: "string"
+      description: "使用的归一化方法"
+    success:
+      type: "boolean"
+      description: "归一化是否成功"
+    norm_value:
+      type: "number"
+      description: "计算的范数值"
+    stats:
+      type: "object"
+      required: false
+      description: "统计信息（mean, min, max, std, sum）"
+    verification:
+      type: "object"
+      required: false
+      description: "验证信息"
+    error:
+      type: "string"
+      required: false
+      description: "错误信息（如果失败）"
+
+semantics:
+  deterministic: true
+  side_effects: []
+  purity: "pure"
+  security:
+    sandbox_required: false
+    network_access: false
+    data_sensitivity: "low"
+
+environment:
+  dependencies: []
+  platforms: ["linux", "darwin", "win32"]
+  python_version: ">=3.8"
+
+tests:
+  framework: "builtin"
+  cases:
+    - name: "L2 归一化"
+      input:
+        vector: [3.0, 4.0, 0.0]
+        method: "l2"
+        return_stats: true
+      expect:
+        original_dim: 3
+        method: "l2"
+        success: true
+        norm_value: 5.0
+    - name: "L1 归一化"
+      input:
+        vector: [1.0, -2.0, 3.0, -4.0]
+        method: "l1"
+      expect:
+        original_dim: 4
+        method: "l1"
+        success: true
+        norm_value: 10.0
+    - name: "Max 归一化"
+      input:
+        vector: [2.0, -5.0, 3.0, 1.0]
+        method: "max"
+      expect:
+        original_dim: 4
+        method: "max"
+        success: true
+    - name: "Z-score 标准化"
+      input:
+        vector: [1.0, 2.0, 3.0, 4.0, 5.0]
+        method: "zscore"
+      expect:
+        original_dim: 5
+        method: "zscore"
+        success: true
+    - name: "Min-Max 归一化"
+      input:
+        vector: [10.0, 20.0, 30.0, 40.0, 50.0]
+        method: "minmax"
+      expect:
+        original_dim: 5
+        method: "minmax"
+        success: true
+    - name: "Softmax 归一化"
+      input:
+        vector: [1.0, 2.0, 3.0]
+        method: "softmax"
+      expect:
+        original_dim: 3
+        method: "softmax"
+        success: true
+    - name: "空向量处理"
+      input:
+        vector: []
+        method: "l2"
+      expect:
+        original_dim: 0
+        method: "l2"
+        success: false
+        error: "Empty vector provided"
+    - name: "单位向量 L2 归一化"
+      input:
+        vector: [1.0, 0.0, 0.0]
+        method: "l2"
+      expect:
+        original_dim: 3
+        method: "l2"
+        success: true
+        norm_value: 1.0
+
+tags: ["ai", "embedding", "vector", "normalization", "ml"]
+
+quality:
+  maturity: "stable"
+  coverage: 0.95
+
+metadata:
+  author: "AgentFuncHub"
+  license: "MIT"
+  created_at: "2026-02-06"

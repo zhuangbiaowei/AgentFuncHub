@@ -1,0 +1,126 @@
+spec_version: '0.1'
+id: net.url.decode
+version: 1.0.0
+name: URL 解码
+description: 对 URL 编码的字符串进行解码（百分号解码），将 %XX 格式转换回原始字符。支持解码查询参数字符串或单个字符串。
+license: MIT
+authors:
+- name: NetAgent_1.0
+  contact: ''
+language:
+  name: python
+  runtime: python>=3.8
+entrypoint:
+  kind: inline
+  symbol: url_decode
+  code: "import urllib.parse\nfrom typing import Tuple, Dict, Any, Optional, Union\n\n\
+    def url_decode(text: Optional[str] = None, encoding: str = 'utf-8', errors: str = 'replace', query_mode: bool = False, keep_blank_values: bool = True) -> Tuple[bool, Dict[str, Any]]:\n    \"\"\"\n\
+    对 URL 编码的字符串进行解码。\n\
+    \"\"\"\n    if text is None:\n        return False, {'error': 'Input cannot be None'}\n\
+    if not isinstance(text, str):\n        return False, {'error': 'Input must be a string'}\n\
+    \n    try:\n        if query_mode:\n            # 解析查询字符串为字典\n            parsed = urllib.parse.parse_qs(text, keep_blank_values=keep_blank_values, encoding=encoding, errors=errors)\n            # 将列表值转换为单个值（如果只有一个）\n            result = {\n                key: values[0] if len(values) == 1 else values\n                for key, values in parsed.items()\n            }\n            return True, {'decoded': result, 'type': 'dict'}\n        else:\n            # 解码单个字符串\n            decoded = urllib.parse.unquote(text, encoding=encoding, errors=errors)\n            return True, {'decoded': decoded, 'type': 'string'}\n            \n    except Exception as e:\n        return False, {'error': f'Decoding failed: {str(e)}'}"
+signature:
+  inputs:
+    text:
+      type: str
+      required: true
+      description: 需要解码的 URL 编码字符串
+    encoding:
+      type: str
+      required: false
+      description: 字符编码
+      default: utf-8
+    errors:
+      type: str
+      required: false
+      description: 解码错误处理方式（strict/replace/ignore）
+      default: replace
+    query_mode:
+      type: bool
+      required: false
+      description: 是否将查询字符串解析为字典
+      default: false
+    keep_blank_values:
+      type: bool
+      required: false
+      description: 是否保留空值（如 key=）
+      default: true
+  outputs:
+    success:
+      type: bool
+      description: 解码是否成功
+    result:
+      type: dict
+      description: 解码结果包含 decoded（解码后的字符串或字典）、type（结果类型）
+semantics:
+  deterministic: true
+  side_effects:
+  - none
+  security:
+    sandbox_required: false
+    data_sensitivity: low
+tests:
+  framework: builtin
+  cases:
+  - name: decode_simple_string
+    input:
+      text: hello%20world
+    expect:
+      success: true
+      result:
+        decoded: hello world
+        type: string
+  - name: decode_chinese
+    input:
+      text: '%E4%B8%AD%E6%96%87%E6%B5%8B%E8%AF%95'
+      encoding: utf-8
+    expect:
+      success: true
+      result:
+        decoded: 中文测试
+        type: string
+  - name: decode_query_string
+    input:
+      text: 'name=John%20Doe&age=25&city=New%20York'
+      query_mode: true
+    expect:
+      success: true
+      result:
+        type: dict
+        decoded:
+          name: John Doe
+  - name: decode_special_chars
+    input:
+      text: '%2F%3F%26%3D%23'
+    expect:
+      success: true
+      result:
+        decoded: '/?&=#'
+        type: string
+  - name: decode_empty_string
+    input:
+      text: ''
+    expect:
+      success: true
+      result:
+        decoded: ''
+        type: string
+  - name: decode_none_input
+    input:
+      text: null
+    expect:
+      success: false
+      result:
+        error: 'Input cannot be None'
+tags:
+- url
+- decode
+- network
+- percent-encoding
+quality:
+  maturity: stable
+provenance:
+  created_at: '2026-02-06T11:00:00Z'
+  updated_at: '2026-02-06T11:00:00Z'
+  source:
+    kind: manual

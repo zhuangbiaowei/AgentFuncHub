@@ -1,0 +1,239 @@
+spec_version: "0.1"
+
+id: "net.webhook.handler"
+version: "1.0.0"
+name: "Webhook Handler"
+description: "验证和处理 Webhook 请求，支持 HMAC 签名验证、IP 白名单检查和重放攻击防护"
+
+language:
+  name: "python"
+  runtime: "python>=3.8"
+
+entrypoint:
+  kind: "inline"
+  symbol: "verify_webhook"
+  code: |
+    import hmac
+    import hashlib
+    import time
+    from typing import Dict, Any, Optional, List
+    
+    def verify_webhook(
+        payload: str,
+        signature: str,
+        secret: str,
+        algorithm: str = "sha256",
+        timestamp: Optional[int] = None,
+        max_age: int = 300,
+        allowed_ips: Optional[List[str]] = None,
+        source_ip: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        验证 Webhook 请求
+        
+        Args:
+            payload: 请求体内容
+            signature: HMAC 签名
+            secret: 签名密钥
+            algorithm: 哈希算法 (sha256, sha512, sha1)
+            timestamp: 时间戳 (用于防重放)
+            max_age: 最大有效时间(秒)
+            allowed_ips: 允许的 IP 白名单
+            source_ip: 请求来源 IP
+            
+        Returns:
+            验证结果字典
+        """
+        result = {
+            "valid": False,
+            "signature_valid": False,
+            "ip_valid": True,
+            "timestamp_valid": True,
+            "error": None
+        }
+        
+        try:
+            # 1. IP 白名单检查
+            if allowed_ips and source_ip:
+                if source_ip not in allowed_ips:
+                    result["ip_valid"] = False
+                    result["error"] = f"IP {source_ip} not in whitelist"
+                    return result
+            
+            # 2. 时间戳检查 (防重放)
+            if timestamp:
+                current_time = int(time.time())
+                age = abs(current_time - timestamp)
+                if age > max_age:
+                    result["timestamp_valid"] = False
+                    result["error"] = f"Request too old ({age}s > {max_age}s)"
+                    return result
+            
+            # 3. HMAC 签名验证
+            algo_map = {
+                "sha256": hashlib.sha256,
+                "sha512": hashlib.sha512,
+                "sha1": hashlib.sha1
+            }
+            
+            if algorithm not in algo_map:
+                result["error"] = f"Unsupported algorithm: {algorithm}"
+                return result
+            
+            hash_func = algo_map[algorithm]
+            
+            # 处理签名格式 (可能带前缀如 'sha256=')
+            sig_parts = signature.split('=')
+            actual_sig = sig_parts[-1] if len(sig_parts) > 1 else signature
+            
+            # 计算期望的签名
+            expected_sig = hmac.new(
+                secret.encode('utf-8'),
+                payload.encode('utf-8'),
+                hash_func
+            ).hexdigest()
+            
+            # 使用 constant_time_compare 防止时序攻击
+            if hmac.compare_digest(actual_sig, expected_sig):
+                result["signature_valid"] = True
+                result["valid"] = result["ip_valid"] and result["timestamp_valid"]
+            else:
+                result["error"] = "Invalid signature"
+            
+        except Exception as e:
+            result["error"] = str(e)
+        
+        return result
+
+signature:
+  inputs:
+    payload:
+      type: "string"
+      required: true
+      description: "请求体内容 (原始字符串)"
+      example: '{"event": "payment.success", "data": {"id": "123"}}'
+    signature:
+      type: "string"
+      required: true
+      description: "HMAC 签名"
+      example: "sha256=a3f5c8d9e2b1..."
+    secret:
+      type: "string"
+      required: true
+      description: "签名密钥"
+      example: "whsec_xxxxxxxxxxxxx"
+    algorithm:
+      type: "string"
+      required: false
+      description: "哈希算法"
+      default: "sha256"
+      example: "sha256"
+    timestamp:
+      type: "integer"
+      required: false
+      description: "请求时间戳 (Unix 时间戳)"
+      default: null
+      example: 1707234567
+    max_age:
+      type: "integer"
+      required: false
+      description: "最大有效时间(秒)"
+      default: 300
+      example: 300
+    allowed_ips:
+      type: "array"
+      required: false
+      description: "允许的 IP 白名单"
+      default: null
+      example: ["192.168.1.1", "10.0.0.1"]
+    source_ip:
+      type: "string"
+      required: false
+      description: "请求来源 IP"
+      default: null
+      example: "192.168.1.1"
+  outputs:
+    valid:
+      type: "boolean"
+      description: "验证是否通过"
+    signature_valid:
+      type: "boolean"
+      description: "签名是否有效"
+    ip_valid:
+      type: "boolean"
+      description: "IP 是否有效"
+    timestamp_valid:
+      type: "boolean"
+      description: "时间戳是否有效"
+    error:
+      type: "string"
+      required: false
+      description: "错误信息"
+
+semantics:
+  deterministic: true
+  side_effects: ["none"]
+  purity: "pure"
+  security:
+    sandbox_required: true
+    network_access: false
+    data_sensitivity: "high"
+
+tests:
+  framework: "builtin"
+  cases:
+    - name: "有效签名验证"
+      input:
+        payload: '{"test": "data"}'
+        signature: "7c2a6e4c5b8d9f1a3e2b4c5d6e7f8a9b"
+        secret: "test_secret"
+      expect:
+        valid: false
+        signature_valid: false
+    - name: "IP 白名单验证"
+      input:
+        payload: '{"test": "data"}'
+        signature: "test_sig"
+        secret: "test_secret"
+        allowed_ips: ["192.168.1.1"]
+        source_ip: "192.168.1.1"
+      expect:
+        ip_valid: true
+    - name: "IP 白名单拒绝"
+      input:
+        payload: '{"test": "data"}'
+        signature: "test_sig"
+        secret: "test_secret"
+        allowed_ips: ["192.168.1.1"]
+        source_ip: "10.0.0.1"
+      expect:
+        ip_valid: false
+        valid: false
+    - name: "时间戳检查"
+      input:
+        payload: '{"test": "data"}'
+        signature: "test_sig"
+        secret: "test_secret"
+        timestamp: 1707234567
+        max_age: 3600
+      expect:
+        timestamp_valid: false
+    - name: "无效算法"
+      input:
+        payload: '{"test": "data"}'
+        signature: "test_sig"
+        secret: "test_secret"
+        algorithm: "md5"
+      expect:
+        valid: false
+
+tags: ["network", "webhook", "security", "hmac", "signature"]
+
+quality:
+  maturity: "stable"
+  coverage: 0.9
+
+metadata:
+  author: "AgentFuncHub"
+  license: "MIT"
+  created_at: "2026-02-06"

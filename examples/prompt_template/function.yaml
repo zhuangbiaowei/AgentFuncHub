@@ -1,0 +1,250 @@
+spec_version: "0.1"
+
+id: "ai.prompt.template"
+version: "1.0.0"
+name: "Prompt Template Engine"
+description: "Prompt模板引擎，支持变量替换和条件渲染，用于动态构建AI对话提示"
+
+language:
+  name: "python"
+  runtime: "python>=3.8"
+
+entrypoint:
+  kind: "inline"
+  symbol: "render_prompt"
+  code: |
+    import re
+    from typing import Dict, Any, List, Optional
+    
+    def render_prompt(
+        template: str,
+        variables: Dict[str, Any],
+        default_values: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        渲染Prompt模板
+        
+        Args:
+            template: 模板字符串，支持 {{variable}} 语法
+            variables: 变量字典
+            default_values: 默认值字典
+            
+        Returns:
+            包含 rendered 结果的字典
+        """
+        if default_values:
+            merged_vars = {**default_values, **variables}
+        else:
+            merged_vars = variables.copy()
+        
+        result = template
+        
+        # 处理条件渲染 {{#if condition}}...{{/if}}
+        def process_conditionals(text: str, vars_dict: Dict[str, Any]) -> str:
+            # 匹配 {{#if key}}...{{/if}}
+            pattern = r'\{\{#if\s+(\w+)\}\}(.*?)\{\{/if\}\}'
+            
+            def replace_conditional(match):
+                var_name = match.group(1)
+                content = match.group(2)
+                
+                # 检查变量是否存在且为真值
+                value = vars_dict.get(var_name)
+                if value and str(value).lower() not in ('false', '0', 'none', ''):
+                    return content
+                else:
+                    return ''
+            
+            return re.sub(pattern, replace_conditional, text, flags=re.DOTALL)
+        
+        # 处理 {{#unless condition}}...{{/unless}}
+        def process_unless(text: str, vars_dict: Dict[str, Any]) -> str:
+            pattern = r'\{\{#unless\s+(\w+)\}\}(.*?)\{\{/unless\}\}'
+            
+            def replace_unless(match):
+                var_name = match.group(1)
+                content = match.group(2)
+                
+                value = vars_dict.get(var_name)
+                if not value or str(value).lower() in ('false', '0', 'none', ''):
+                    return content
+                else:
+                    return ''
+            
+            return re.sub(pattern, replace_unless, text, flags=re.DOTALL)
+        
+        # 处理 {{#each items}}...{{/each}} 循环
+        def process_each(text: str, vars_dict: Dict[str, Any]) -> str:
+            pattern = r'\{\{#each\s+(\w+)\}\}(.*?)\{\{/each\}\}'
+            
+            def replace_each(match):
+                list_name = match.group(1)
+                content = match.group(2)
+                
+                items = vars_dict.get(list_name, [])
+                if not isinstance(items, list):
+                    return ''
+                
+                result_parts = []
+                for i, item in enumerate(items):
+                    item_content = content
+                    if isinstance(item, dict):
+                        for key, value in item.items():
+                            placeholder = f'{{{{this.{key}}}}}'
+                            item_content = item_content.replace(placeholder, str(value))
+                    else:
+                        item_content = item_content.replace('{{this}}', str(item))
+                    # 添加索引
+                    item_content = item_content.replace('{{@index}}', str(i))
+                    result_parts.append(item_content)
+                
+                return ''.join(result_parts)
+            
+            return re.sub(pattern, replace_each, text, flags=re.DOTALL)
+        
+        # 处理条件渲染
+        result = process_conditionals(result, merged_vars)
+        result = process_unless(result, merged_vars)
+        result = process_each(result, merged_vars)
+        
+        # 处理普通变量替换 {{variable}}
+        # 先找出所有占位符
+        placeholders = re.findall(r'\{\{(\w+)\}\}', result)
+        
+        # 替换变量
+        for key, value in merged_vars.items():
+            placeholder = f'{{{{{key}}}}}'
+            if isinstance(value, (list, dict)):
+                value_str = str(value)
+            else:
+                value_str = str(value) if value is not None else ''
+            result = result.replace(placeholder, value_str)
+        
+        # 找出未定义的变量
+        undefined_vars = []
+        for placeholder in placeholders:
+            if placeholder not in merged_vars:
+                undefined_vars.append(placeholder)
+        
+        return {
+            "rendered": result,
+            "success": True,
+            "undefined_vars": list(set(undefined_vars)) if undefined_vars else [],
+            "variable_count": len(placeholders)
+        }
+
+signature:
+  inputs:
+    template:
+      type: "string"
+      required: true
+      description: "模板字符串，使用 {{variable}} 语法"
+      example: "Hello {{name}}, you have {{count}} messages."
+    variables:
+      type: "object"
+      required: true
+      description: "变量字典"
+      default: {}
+      example: {"name": "Alice", "count": 5}
+    default_values:
+      type: "object"
+      required: false
+      description: "默认值字典，当变量不存在时使用"
+      default: {}
+      example: {"name": "Guest", "count": 0}
+  outputs:
+    rendered:
+      type: "string"
+      description: "渲染后的字符串"
+    success:
+      type: "boolean"
+      description: "渲染是否成功"
+    undefined_vars:
+      type: "array"
+      description: "未定义的变量列表"
+    variable_count:
+      type: "integer"
+      description: "模板中变量的数量"
+
+semantics:
+  deterministic: true
+  side_effects: []
+  purity: "pure"
+  security:
+    sandbox_required: false
+    network_access: false
+    data_sensitivity: "low"
+
+environment:
+  dependencies: []
+  platforms: ["linux", "darwin", "win32"]
+  python_version: ">=3.8"
+
+tests:
+  framework: "builtin"
+  cases:
+    - name: "基础变量替换"
+      input:
+        template: "Hello {{name}}, welcome to {{platform}}!"
+        variables:
+          name: "Alice"
+          platform: "AgentFuncHub"
+      expect:
+        rendered: "Hello Alice, welcome to AgentFuncHub!"
+        success: true
+        variable_count: 2
+        undefined_vars: []
+    - name: "条件渲染 - if 为真"
+      input:
+        template: "Welcome{{#if premium}} Premium{{/if}} User"
+        variables:
+          premium: true
+      expect:
+        rendered: "Welcome Premium User"
+        success: true
+    - name: "条件渲染 - if 为假"
+      input:
+        template: "Welcome{{#if premium}} Premium{{/if}} User"
+        variables:
+          premium: false
+      expect:
+        rendered: "Welcome User"
+        success: true
+    - name: "循环渲染"
+      input:
+        template: "Items: {{#each items}}- {{this}} {{/each}}"
+        variables:
+          items: ["apple", "banana", "cherry"]
+      expect:
+        rendered: "Items: - apple - banana - cherry "
+        success: true
+    - name: "默认值处理"
+      input:
+        template: "Hello {{name}}!"
+        variables: {}
+        default_values:
+          name: "Guest"
+      expect:
+        rendered: "Hello Guest!"
+        success: true
+        undefined_vars: []
+    - name: "未定义变量检测"
+      input:
+        template: "{{greeting}} {{name}}, your score is {{score}}"
+        variables:
+          name: "Bob"
+      expect:
+        rendered: " {{name}}, your score is "
+        success: true
+        undefined_vars: ["greeting", "score"]
+
+tags: ["ai", "prompt", "template", "nlp"]
+
+quality:
+  maturity: "stable"
+  coverage: 0.95
+
+metadata:
+  author: "AgentFuncHub"
+  license: "MIT"
+  created_at: "2026-02-06"

@@ -1,0 +1,109 @@
+spec_version: '0.1'
+id: net.http.get
+version: 1.0.0
+name: HTTP GET 请求
+description: 发送 HTTP GET 请求并返回响应内容。支持自定义请求头、超时设置和查询参数。
+license: MIT
+authors:
+- name: NetAgent_1.0
+  contact: ''
+language:
+  name: python
+  runtime: python>=3.8
+entrypoint:
+  kind: inline
+  symbol: http_get
+  code: "import urllib.request\nimport urllib.parse\nimport json\nfrom typing import Tuple, Dict, Any, Optional\n\n\
+    def http_get(url: str, headers: Optional[Dict[str, str]] = None, timeout: int = 30, params: Optional[Dict[str, str]] = None) -> Tuple[bool, Dict[str, Any]]:\n    \"\"\"\n\
+    发送 HTTP GET 请求。\n\
+    \"\"\"\n    if not url:\n        return False, {'error': 'URL cannot be empty'}\n\
+    \n    try:\n        # 添加查询参数\n        if params:\n            query_string = urllib.parse.urlencode(params)\n            separator = '&' if '?' in url else '?'\n            url = f\"{url}{separator}{query_string}\"\n        \n        # 创建请求\n        req = urllib.request.Request(url, method='GET')\n        \n        # 添加请求头\n        if headers:\n            for key, value in headers.items():\n                req.add_header(key, value)\n        \n        # 发送请求\n        with urllib.request.urlopen(req, timeout=timeout) as response:\n            body = response.read()\n            encoding = response.headers.get_content_charset() or 'utf-8'\n            \n            result = {\n                'status_code': response.status,\n                'headers': dict(response.headers),\n                'body': body.decode(encoding),\n                'url': response.geturl()\n            }\n            return True, result\n            \n    except urllib.error.HTTPError as e:\n        return False, {\n            'error': f'HTTP Error {e.code}: {e.reason}',\n            'status_code': e.code\n        }\n    except urllib.error.URLError as e:\n        return False, {'error': f'URL Error: {str(e.reason)}'}\n    except Exception as e:\n        return False, {'error': f'Request failed: {str(e)}'}"
+signature:
+  inputs:
+    url:
+      type: str
+      required: true
+      description: 请求的 URL 地址
+    headers:
+      type: dict
+      required: false
+      description: 自定义请求头字典
+      default: {}
+    timeout:
+      type: int
+      required: false
+      description: 请求超时时间（秒）
+      default: 30
+    params:
+      type: dict
+      required: false
+      description: URL 查询参数字典
+      default: {}
+  outputs:
+    success:
+      type: bool
+      description: 请求是否成功
+    result:
+      type: dict
+      description: 响应结果包含 status_code、headers、body、url
+semantics:
+  deterministic: false
+  side_effects:
+  - network
+  security:
+    sandbox_required: true
+    data_sensitivity: medium
+tests:
+  framework: builtin
+  cases:
+  - name: simple_get
+    input:
+      url: https://httpbin.org/get
+      timeout: 10
+    expect:
+      success: true
+      result:
+        status_code: 200
+  - name: get_with_params
+    input:
+      url: https://httpbin.org/get
+      params:
+        foo: bar
+        key: value
+      timeout: 10
+    expect:
+      success: true
+  - name: get_with_headers
+    input:
+      url: https://httpbin.org/get
+      headers:
+        User-Agent: TestAgent/1.0
+        Accept: application/json
+      timeout: 10
+    expect:
+      success: true
+  - name: invalid_url
+    input:
+      url: not-a-valid-url
+      timeout: 5
+    expect:
+      success: false
+  - name: empty_url
+    input:
+      url: ''
+    expect:
+      success: false
+      result:
+        error: 'URL cannot be empty'
+tags:
+- http
+- network
+- request
+- get
+quality:
+  maturity: stable
+provenance:
+  created_at: '2026-02-06T11:00:00Z'
+  updated_at: '2026-02-06T11:00:00Z'
+  source:
+    kind: manual

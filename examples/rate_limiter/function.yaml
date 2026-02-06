@@ -1,0 +1,297 @@
+spec_version: "0.1"
+
+id: "net.rate.limiter"
+version: "1.0.0"
+name: "Rate Limiter"
+description: "令牌桶算法实现的速率限制器，用于控制操作频率，支持滑动窗口和固定窗口模式"
+
+language:
+  name: "python"
+  runtime: "python>=3.8"
+
+entrypoint:
+  kind: "inline"
+  symbol: "rate_limiter"
+  code: |
+    import time
+    from typing import Dict, Any, Optional
+    from collections import defaultdict
+    
+    # 内存中的速率限制存储 (实际应用应使用 Redis)
+    _token_buckets = {}
+    _window_counters = {}
+    
+    def rate_limiter(
+        key: str,
+        action: str = "check",
+        max_requests: int = 100,
+        window_size: int = 60,
+        tokens_per_second: Optional[float] = None,
+        bucket_capacity: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        速率限制器
+        
+        Args:
+            key: 限流键 (如用户ID、IP地址)
+            action: 操作类型 ("check", "acquire", "reset")
+            max_requests: 窗口期内最大请求数 (固定窗口模式)
+            window_size: 窗口大小(秒)
+            tokens_per_second: 令牌产生速率 (令牌桶模式)
+            bucket_capacity: 令牌桶容量 (令牌桶模式)
+            
+        Returns:
+            包含限流状态的字典
+        """
+        current_time = time.time()
+        
+        # 默认使用固定窗口
+        if tokens_per_second is None:
+            return _fixed_window_limiter(
+                key, action, max_requests, window_size, current_time
+            )
+        else:
+            # 令牌桶模式
+            capacity = bucket_capacity or max_requests
+            return _token_bucket_limiter(
+                key, action, tokens_per_second, capacity, current_time
+            )
+    
+    def _fixed_window_limiter(key, action, max_requests, window_size, current_time):
+        """固定窗口计数器"""
+        global _window_counters
+        
+        window_key = f"{key}:{int(current_time // window_size)}"
+        
+        if action == "reset":
+            if window_key in _window_counters:
+                del _window_counters[window_key]
+            return {
+                "allowed": True,
+                "current_count": 0,
+                "limit": max_requests,
+                "window": window_size,
+                "mode": "fixed_window",
+                "reset": True
+            }
+        
+        # 获取当前计数
+        current_count = _window_counters.get(window_key, 0)
+        
+        if action == "acquire":
+            if current_count < max_requests:
+                _window_counters[window_key] = current_count + 1
+                current_count += 1
+                allowed = True
+            else:
+                allowed = False
+        else:  # check
+            allowed = current_count < max_requests
+        
+        remaining = max(0, max_requests - current_count)
+        
+        # 计算窗口重置时间
+        current_window_start = int(current_time // window_size) * window_size
+        reset_time = current_window_start + window_size
+        
+        return {
+            "allowed": allowed,
+            "current_count": current_count,
+            "limit": max_requests,
+            "remaining": remaining,
+            "window": window_size,
+            "reset_time": reset_time,
+            "mode": "fixed_window"
+        }
+    
+    def _token_bucket_limiter(key, action, tokens_per_second, capacity, current_time):
+        """令牌桶算法"""
+        global _token_buckets
+        
+        bucket_key = f"bucket:{key}"
+        
+        if action == "reset":
+            if bucket_key in _token_buckets:
+                del _token_buckets[bucket_key]
+            return {
+                "allowed": True,
+                "tokens": capacity,
+                "capacity": capacity,
+                "rate": tokens_per_second,
+                "mode": "token_bucket",
+                "reset": True
+            }
+        
+        # 获取或创建桶
+        if bucket_key not in _token_buckets:
+            _token_buckets[bucket_key] = {
+                "tokens": capacity,
+                "last_update": current_time
+            }
+        
+        bucket = _token_buckets[bucket_key]
+        
+        # 计算新产生的令牌
+        time_passed = current_time - bucket["last_update"]
+        new_tokens = time_passed * tokens_per_second
+        bucket["tokens"] = min(capacity, bucket["tokens"] + new_tokens)
+        bucket["last_update"] = current_time
+        
+        if action == "acquire":
+            if bucket["tokens"] >= 1:
+                bucket["tokens"] -= 1
+                allowed = True
+            else:
+                allowed = False
+        else:  # check
+            allowed = bucket["tokens"] >= 1
+        
+        return {
+            "allowed": allowed,
+            "tokens": int(bucket["tokens"]),
+            "capacity": capacity,
+            "rate": tokens_per_second,
+            "mode": "token_bucket"
+        }
+
+signature:
+  inputs:
+    key:
+      type: "string"
+      required: true
+      description: "限流键 (如用户ID、IP)"
+      example: "user_12345"
+    action:
+      type: "string"
+      required: false
+      description: "操作类型"
+      default: "check"
+      example: "acquire"
+    max_requests:
+      type: "integer"
+      required: false
+      description: "窗口期最大请求数"
+      default: 100
+      example: 100
+    window_size:
+      type: "integer"
+      required: false
+      description: "窗口大小(秒)"
+      default: 60
+      example: 60
+    tokens_per_second:
+      type: "number"
+      required: false
+      description: "令牌产生速率 (使用令牌桶模式时设置)"
+      default: null
+      example: 10.0
+    bucket_capacity:
+      type: "integer"
+      required: false
+      description: "令牌桶容量"
+      default: null
+      example: 100
+  outputs:
+    allowed:
+      type: "boolean"
+      description: "是否允许请求"
+    current_count:
+      type: "integer"
+      required: false
+      description: "当前请求数 (固定窗口)"
+    tokens:
+      type: "integer"
+      required: false
+      description: "当前令牌数 (令牌桶)"
+    limit:
+      type: "integer"
+      required: false
+      description: "请求限制"
+    capacity:
+      type: "integer"
+      required: false
+      description: "桶容量 (令牌桶)"
+    remaining:
+      type: "integer"
+      required: false
+      description: "剩余请求数"
+    rate:
+      type: "number"
+      required: false
+      description: "令牌产生速率"
+    window:
+      type: "integer"
+      required: false
+      description: "窗口大小"
+    reset_time:
+      type: "integer"
+      required: false
+      description: "窗口重置时间戳"
+    mode:
+      type: "string"
+      description: "限流模式 (fixed_window/token_bucket)"
+    reset:
+      type: "boolean"
+      required: false
+      description: "是否执行了重置"
+
+semantics:
+  deterministic: false
+  side_effects: ["memory"]
+  purity: "impure"
+  security:
+    sandbox_required: true
+    network_access: false
+    data_sensitivity: "low"
+
+tests:
+  framework: "builtin"
+  cases:
+    - name: "固定窗口检查"
+      input:
+        key: "test_user"
+        action: "check"
+        max_requests: 10
+        window_size: 60
+      expect:
+        allowed: true
+        mode: "fixed_window"
+    - name: "固定窗口获取"
+      input:
+        key: "test_user_2"
+        action: "acquire"
+        max_requests: 5
+        window_size: 60
+      expect:
+        allowed: true
+        current_count: 1
+        remaining: 4
+    - name: "令牌桶模式"
+      input:
+        key: "api_client"
+        action: "acquire"
+        tokens_per_second: 10.0
+        bucket_capacity: 100
+      expect:
+        allowed: true
+        mode: "token_bucket"
+        capacity: 100
+    - name: "重置限流"
+      input:
+        key: "test_user_3"
+        action: "reset"
+        max_requests: 10
+      expect:
+        reset: true
+        allowed: true
+
+tags: ["network", "rate-limit", "throttle", "token-bucket"]
+
+quality:
+  maturity: "stable"
+  coverage: 0.9
+
+metadata:
+  author: "AgentFuncHub"
+  license: "MIT"
+  created_at: "2026-02-06"

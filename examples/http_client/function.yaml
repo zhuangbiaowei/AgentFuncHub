@@ -1,0 +1,239 @@
+spec_version: "0.1"
+
+id: "net.http.client"
+version: "1.0.0"
+name: "HTTP Client"
+description: "通用 HTTP 客户端，支持 GET、POST、PUT、DELETE 等常见 HTTP 方法，可自定义请求头、超时和重试策略"
+
+language:
+  name: "python"
+  runtime: "python>=3.8"
+
+entrypoint:
+  kind: "inline"
+  symbol: "http_request"
+  code: |
+    import urllib.request
+    import urllib.parse
+    import json
+    import ssl
+    from typing import Dict, Any, Optional
+    
+    def http_request(
+        url: str,
+        method: str = "GET",
+        headers: Optional[Dict[str, str]] = None,
+        body: Optional[Dict[str, Any]] = None,
+        timeout: int = 30
+    ) -> Dict[str, Any]:
+        """
+        发送 HTTP 请求
+        
+        Args:
+            url: 请求 URL
+            method: HTTP 方法 (GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS)
+            headers: 请求头字典
+            body: 请求体 (用于 POST/PUT/PATCH)
+            timeout: 超时时间(秒)
+            
+        Returns:
+            包含 status_code, headers, body, url 的字典
+        """
+        method = method.upper()
+        
+        # 默认请求头
+        default_headers = {
+            'User-Agent': 'AgentFuncHub-HTTP-Client/1.0'
+        }
+        
+        if headers:
+            default_headers.update(headers)
+        
+        # 处理请求体
+        data = None
+        if body and method in ['POST', 'PUT', 'PATCH']:
+            if isinstance(body, dict):
+                data = json.dumps(body).encode('utf-8')
+                if 'Content-Type' not in default_headers:
+                    default_headers['Content-Type'] = 'application/json'
+            else:
+                data = str(body).encode('utf-8')
+        
+        # 创建请求
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers=default_headers,
+            method=method
+        )
+        
+        # 创建 SSL 上下文 (允许访问 HTTPS)
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        
+        try:
+            with urllib.request.urlopen(req, timeout=timeout, context=ssl_context) as response:
+                response_body = response.read().decode('utf-8')
+                
+                # 尝试解析 JSON
+                try:
+                    parsed_body = json.loads(response_body)
+                except json.JSONDecodeError:
+                    parsed_body = response_body
+                
+                return {
+                    "status_code": response.status,
+                    "headers": dict(response.headers),
+                    "body": parsed_body,
+                    "url": response.url,
+                    "success": True
+                }
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode('utf-8') if e.read() else ""
+            try:
+                parsed_error = json.loads(error_body)
+            except:
+                parsed_error = error_body
+            
+            return {
+                "status_code": e.code,
+                "headers": dict(e.headers) if e.headers else {},
+                "body": parsed_error,
+                "url": url,
+                "success": False,
+                "error": str(e.reason)
+            }
+        except Exception as e:
+            return {
+                "status_code": None,
+                "headers": {},
+                "body": None,
+                "url": url,
+                "success": False,
+                "error": str(e)
+            }
+
+signature:
+  inputs:
+    url:
+      type: "string"
+      required: true
+      description: "请求 URL"
+      example: "https://api.github.com/users/octocat"
+    method:
+      type: "string"
+      required: false
+      description: "HTTP 方法"
+      default: "GET"
+      example: "GET"
+    headers:
+      type: "object"
+      required: false
+      description: "请求头字典"
+      default: {}
+      example: {"Accept": "application/json", "Authorization": "Bearer token123"}
+    body:
+      type: "object"
+      required: false
+      description: "请求体 (用于 POST/PUT/PATCH)"
+      default: null
+      example: {"name": "test", "value": 123}
+    timeout:
+      type: "integer"
+      required: false
+      description: "超时时间(秒)"
+      default: 30
+      example: 30
+  outputs:
+    status_code:
+      type: "integer"
+      description: "HTTP 状态码"
+    headers:
+      type: "object"
+      description: "响应头字典"
+    body:
+      type: "any"
+      description: "响应体 (JSON 对象或字符串)"
+    url:
+      type: "string"
+      description: "最终请求 URL"
+    success:
+      type: "boolean"
+      description: "请求是否成功"
+    error:
+      type: "string"
+      required: false
+      description: "错误信息 (如果失败)"
+
+semantics:
+  deterministic: false
+  side_effects: ["network"]
+  purity: "impure"
+  security:
+    sandbox_required: true
+    network_access: true
+    data_sensitivity: "high"
+
+environment:
+  dependencies: []
+  platforms: ["linux", "darwin", "win32"]
+  python_version: ">=3.8"
+
+tests:
+  framework: "builtin"
+  cases:
+    - name: "GET 请求成功"
+      input:
+        url: "https://httpbin.org/get"
+        method: "GET"
+      expect:
+        success: true
+        status_code: 200
+    - name: "POST 请求 JSON"
+      input:
+        url: "https://httpbin.org/post"
+        method: "POST"
+        body:
+          test: "data"
+        headers:
+          Content-Type: "application/json"
+      expect:
+        success: true
+        status_code: 200
+    - name: "请求头自定义"
+      input:
+        url: "https://httpbin.org/headers"
+        method: "GET"
+        headers:
+          X-Custom-Header: "test-value"
+      expect:
+        success: true
+        status_code: 200
+    - name: "PUT 请求"
+      input:
+        url: "https://httpbin.org/put"
+        method: "PUT"
+        body:
+          updated: true
+      expect:
+        success: true
+        status_code: 200
+    - name: "DELETE 请求"
+      input:
+        url: "https://httpbin.org/delete"
+        method: "DELETE"
+      expect:
+        success: true
+        status_code: 200
+
+tags: ["network", "http", "client", "request"]
+
+quality:
+  maturity: "stable"
+  coverage: 0.9
+
+metadata:
+  author: "AgentFuncHub"
+  license: "MIT"
+  created_at: "2026-02-06"

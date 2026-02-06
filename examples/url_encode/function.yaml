@@ -1,0 +1,123 @@
+spec_version: '0.1'
+id: net.url.encode
+version: 1.0.0
+name: URL 编码
+description: 对字符串进行 URL 编码（百分号编码），将特殊字符转换为 %XX 格式。支持编码查询参数键值对或单个字符串。
+license: MIT
+authors:
+- name: NetAgent_1.0
+  contact: ''
+language:
+  name: python
+  runtime: python>=3.8
+entrypoint:
+  kind: inline
+  symbol: url_encode
+  code: "import urllib.parse\nfrom typing import Tuple, Dict, Any, Optional, Union\n\n\
+    def url_encode(text: Union[str, Dict[str, str], None] = None, safe: str = '', encoding: str = 'utf-8', query_mode: bool = False, doseq: bool = False) -> Tuple[bool, Dict[str, Any]]:\n    \"\"\"\n\
+    对字符串或字典进行 URL 编码。\n\
+    \"\"\"\n    if text is None:\n        return False, {'error': 'Input cannot be None'}\n\
+    \n    try:\n        if isinstance(text, dict):\n            # 编码查询参数字典\n            if query_mode:\n                # 返回完整查询字符串\n                encoded = urllib.parse.urlencode(text, doseq=doseq, encoding=encoding, safe=safe)\n                return True, {'encoded': encoded, 'type': 'query_string'}\n            else:\n                # 单独编码每个值\n                result = {\n                    key: urllib.parse.quote(str(value), safe=safe, encoding=encoding)\n                    for key, value in text.items()\n                }\n                return True, {'encoded': result, 'type': 'dict'}\n        else:\n            # 编码单个字符串\n            encoded = urllib.parse.quote(str(text), safe=safe, encoding=encoding)\n            return True, {'encoded': encoded, 'type': 'string'}\n            \n    except Exception as e:\n        return False, {'error': f'Encoding failed: {str(e)}'}"
+signature:
+  inputs:
+    text:
+      type: str
+      required: true
+      description: 需要编码的字符串或参数字典
+    safe:
+      type: str
+      required: false
+      description: 不需要编码的字符（如 '/' 保留路径分隔符）
+      default: ''
+    encoding:
+      type: str
+      required: false
+      description: 字符编码
+      default: utf-8
+    query_mode:
+      type: bool
+      required: false
+      description: 字典输入时是否返回完整查询字符串
+      default: false
+    doseq:
+      type: bool
+      required: false
+      description: 字典输入时是否处理序列值
+      default: false
+  outputs:
+    success:
+      type: bool
+      description: 编码是否成功
+    result:
+      type: dict
+      description: 编码结果包含 encoded（编码后的字符串或字典）、type（结果类型）
+semantics:
+  deterministic: true
+  side_effects:
+  - none
+  security:
+    sandbox_required: false
+    data_sensitivity: low
+tests:
+  framework: builtin
+  cases:
+  - name: encode_simple_string
+    input:
+      text: hello world
+    expect:
+      success: true
+      result:
+        encoded: hello%20world
+        type: string
+  - name: encode_special_chars
+    input:
+      text: 'a=b&c=d?e=f'
+    expect:
+      success: true
+      result:
+        type: string
+  - name: encode_chinese
+    input:
+      text: 中文测试
+      encoding: utf-8
+    expect:
+      success: true
+      result:
+        encoded: '%E4%B8%AD%E6%96%87%E6%B5%8B%E8%AF%95'
+        type: string
+  - name: encode_dict_to_query
+    input:
+      text:
+        name: John Doe
+        age: '25'
+      query_mode: true
+    expect:
+      success: true
+      result:
+        type: query_string
+  - name: encode_with_safe_chars
+    input:
+      text: path/to/file.txt
+      safe: '/'
+    expect:
+      success: true
+      result:
+        encoded: path/to/file.txt
+        type: string
+  - name: encode_none_input
+    input:
+      text: null
+    expect:
+      success: false
+tags:
+- url
+- encode
+- network
+- percent-encoding
+quality:
+  maturity: stable
+provenance:
+  created_at: '2026-02-06T11:00:00Z'
+  updated_at: '2026-02-06T11:00:00Z'
+  source:
+    kind: manual

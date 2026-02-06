@@ -1,0 +1,293 @@
+spec_version: "0.1"
+
+id: "net.request.retry"
+version: "1.0.0"
+name: "Request with Retry"
+description: "带自动重试的 HTTP 请求，支持指数退避、最大重试次数和可重试状态码配置"
+
+language:
+  name: "python"
+  runtime: "python>=3.8"
+
+entrypoint:
+  kind: "inline"
+  symbol: "request_with_retry"
+  code: |
+    import urllib.request
+    import urllib.error
+    import time
+    import json
+    import ssl
+    from typing import Dict, Any, Optional, List
+    
+    def request_with_retry(
+        url: str,
+        method: str = "GET",
+        headers: Optional[Dict[str, str]] = None,
+        body: Optional[Dict[str, Any]] = None,
+        max_retries: int = 3,
+        backoff_factor: float = 1.0,
+        retry_statuses: Optional[List[int]] = None,
+        timeout: int = 30
+    ) -> Dict[str, Any]:
+        """
+        发送带重试的 HTTP 请求
+        
+        Args:
+            url: 请求 URL
+            method: HTTP 方法
+            headers: 请求头
+            body: 请求体
+            max_retries: 最大重试次数
+            backoff_factor: 退避因子 (每次重试等待时间 = backoff_factor * 2^retry_count)
+            retry_statuses: 需要重试的状态码列表 (默认 [500, 502, 503, 504])
+            timeout: 单次请求超时时间
+            
+        Returns:
+            包含响应数据和重试信息的字典
+        """
+        if retry_statuses is None:
+            retry_statuses = [500, 502, 503, 504]
+        
+        method = method.upper()
+        last_error = None
+        
+        # 准备请求数据
+        data = None
+        if body and method in ['POST', 'PUT', 'PATCH']:
+            if isinstance(body, dict):
+                data = json.dumps(body).encode('utf-8')
+            else:
+                data = str(body).encode('utf-8')
+        
+        # 默认请求头
+        req_headers = {'User-Agent': 'AgentFuncHub-Retry-Client/1.0'}
+        if headers:
+            req_headers.update(headers)
+        if data and 'Content-Type' not in req_headers:
+            req_headers['Content-Type'] = 'application/json'
+        
+        # SSL 上下文
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        
+        for attempt in range(max_retries + 1):
+            try:
+                req = urllib.request.Request(
+                    url,
+                    data=data,
+                    headers=req_headers,
+                    method=method
+                )
+                
+                with urllib.request.urlopen(req, timeout=timeout, context=ssl_context) as response:
+                    response_body = response.read().decode('utf-8')
+                    try:
+                        parsed_body = json.loads(response_body)
+                    except json.JSONDecodeError:
+                        parsed_body = response_body
+                    
+                    return {
+                        "status_code": response.status,
+                        "body": parsed_body,
+                        "headers": dict(response.headers),
+                        "success": True,
+                        "attempts": attempt + 1,
+                        "retries": attempt,
+                        "url": response.url
+                    }
+                    
+            except urllib.error.HTTPError as e:
+                last_error = e
+                
+                # 检查是否应该重试
+                if e.code in retry_statuses and attempt < max_retries:
+                    # 计算退避时间
+                    sleep_time = backoff_factor * (2 ** attempt)
+                    time.sleep(sleep_time)
+                    continue
+                else:
+                    # 不重试，返回错误
+                    error_body = e.read().decode('utf-8') if e.read() else ""
+                    try:
+                        parsed_error = json.loads(error_body)
+                    except:
+                        parsed_error = error_body
+                    
+                    return {
+                        "status_code": e.code,
+                        "body": parsed_error,
+                        "headers": dict(e.headers) if e.headers else {},
+                        "success": False,
+                        "attempts": attempt + 1,
+                        "retries": attempt,
+                        "error": str(e.reason),
+                        "url": url
+                    }
+                    
+            except Exception as e:
+                last_error = e
+                if attempt < max_retries:
+                    sleep_time = backoff_factor * (2 ** attempt)
+                    time.sleep(sleep_time)
+                    continue
+                else:
+                    return {
+                        "status_code": None,
+                        "body": None,
+                        "headers": {},
+                        "success": False,
+                        "attempts": attempt + 1,
+                        "retries": attempt,
+                        "error": str(e),
+                        "url": url
+                    }
+        
+        # 所有重试都失败了
+        return {
+            "status_code": None,
+            "body": None,
+            "headers": {},
+            "success": False,
+            "attempts": max_retries + 1,
+            "retries": max_retries,
+            "error": str(last_error) if last_error else "Max retries exceeded",
+            "url": url
+        }
+
+signature:
+  inputs:
+    url:
+      type: "string"
+      required: true
+      description: "请求 URL"
+      example: "https://api.example.com/data"
+    method:
+      type: "string"
+      required: false
+      description: "HTTP 方法"
+      default: "GET"
+      example: "GET"
+    headers:
+      type: "object"
+      required: false
+      description: "请求头"
+      default: {}
+      example: {"Authorization": "Bearer token"}
+    body:
+      type: "object"
+      required: false
+      description: "请求体"
+      default: null
+      example: {"key": "value"}
+    max_retries:
+      type: "integer"
+      required: false
+      description: "最大重试次数"
+      default: 3
+      example: 3
+    backoff_factor:
+      type: "number"
+      required: false
+      description: "退避因子 (秒)"
+      default: 1.0
+      example: 1.0
+    retry_statuses:
+      type: "array"
+      required: false
+      description: "需要重试的状态码"
+      default: [500, 502, 503, 504]
+      example: [500, 502, 503, 504]
+    timeout:
+      type: "integer"
+      required: false
+      description: "单次请求超时(秒)"
+      default: 30
+      example: 30
+  outputs:
+    status_code:
+      type: "integer"
+      description: "HTTP 状态码"
+    body:
+      type: "any"
+      description: "响应体"
+    headers:
+      type: "object"
+      description: "响应头"
+    success:
+      type: "boolean"
+      description: "是否成功"
+    attempts:
+      type: "integer"
+      description: "尝试次数"
+    retries:
+      type: "integer"
+      description: "实际重试次数"
+    error:
+      type: "string"
+      required: false
+      description: "错误信息"
+    url:
+      type: "string"
+      description: "请求 URL"
+
+semantics:
+  deterministic: false
+  side_effects: ["network"]
+  purity: "impure"
+  security:
+    sandbox_required: true
+    network_access: true
+    data_sensitivity: "medium"
+
+tests:
+  framework: "builtin"
+  cases:
+    - name: "成功请求"
+      input:
+        url: "https://httpbin.org/get"
+        method: "GET"
+        max_retries: 2
+      expect:
+        success: true
+        attempts: 1
+    - name: "带重试的请求"
+      input:
+        url: "https://httpbin.org/status/500"
+        method: "GET"
+        max_retries: 2
+        backoff_factor: 0.1
+      expect:
+        success: false
+        attempts: 3
+    - name: "POST 请求"
+      input:
+        url: "https://httpbin.org/post"
+        method: "POST"
+        body:
+          test: "data"
+        max_retries: 1
+      expect:
+        success: true
+    - name: "自定义重试状态码"
+      input:
+        url: "https://httpbin.org/status/429"
+        method: "GET"
+        max_retries: 1
+        retry_statuses: [429, 500]
+        backoff_factor: 0.1
+      expect:
+        success: false
+        attempts: 2
+
+tags: ["network", "http", "retry", "resilience"]
+
+quality:
+  maturity: "stable"
+  coverage: 0.85
+
+metadata:
+  author: "AgentFuncHub"
+  license: "MIT"
+  created_at: "2026-02-06"

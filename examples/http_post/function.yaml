@@ -1,0 +1,115 @@
+spec_version: '0.1'
+id: net.http.post
+version: 1.0.0
+name: HTTP POST 请求
+description: 发送 HTTP POST 请求并返回响应内容。支持 JSON、表单数据和纯文本等多种内容类型。
+license: MIT
+authors:
+- name: NetAgent_1.0
+  contact: ''
+language:
+  name: python
+  runtime: python>=3.8
+entrypoint:
+  kind: inline
+  symbol: http_post
+  code: "import urllib.request\nimport json\nfrom typing import Tuple, Dict, Any, Optional\nimport urllib.parse\n\n\
+    def http_post(url: str, data: Optional[Dict[str, Any]] = None, json_data: Optional[Dict[str, Any]] = None, headers: Optional[Dict[str, str]] = None, timeout: int = 30) -> Tuple[bool, Dict[str, Any]]:\n    \"\"\"\n\
+    发送 HTTP POST 请求。\n\
+    \"\"\"\n    if not url:\n        return False, {'error': 'URL cannot be empty'}\n\
+    \n    try:\n        body = None\n        req_headers = headers.copy() if headers else {}\n        \n        # 处理 JSON 数据\n        if json_data is not None:\n            body = json.dumps(json_data).encode('utf-8')\n            req_headers.setdefault('Content-Type', 'application/json')\n        # 处理表单数据\n        elif data is not None:\n            if isinstance(data, dict):\n                body = urllib.parse.urlencode(data).encode('utf-8')\n                req_headers.setdefault('Content-Type', 'application/x-www-form-urlencoded')\n            elif isinstance(data, str):\n                body = data.encode('utf-8')\n            else:\n                body = data\n        \n        # 创建请求\n        req = urllib.request.Request(url, data=body, method='POST')\n        \n        # 添加请求头\n        for key, value in req_headers.items():\n            req.add_header(key, value)\n        \n        # 发送请求\n        with urllib.request.urlopen(req, timeout=timeout) as response:\n            resp_body = response.read()\n            encoding = response.headers.get_content_charset() or 'utf-8'\n            \n            result = {\n                'status_code': response.status,\n                'headers': dict(response.headers),\n                'body': resp_body.decode(encoding),\n                'url': response.geturl()\n            }\n            return True, result\n            \n    except urllib.error.HTTPError as e:\n        return False, {\n            'error': f'HTTP Error {e.code}: {e.reason}',\n            'status_code': e.code\n        }\n    except urllib.error.URLError as e:\n        return False, {'error': f'URL Error: {str(e.reason)}'}\n    except Exception as e:\n        return False, {'error': f'Request failed: {str(e)}'}"
+signature:
+  inputs:
+    url:
+      type: str
+      required: true
+      description: 请求的 URL 地址
+    data:
+      type: dict
+      required: false
+      description: 表单数据（字典）或原始数据字符串
+      default: {}
+    json_data:
+      type: dict
+      required: false
+      description: JSON 数据（会自动设置 Content-Type 为 application/json）
+      default: {}
+    headers:
+      type: dict
+      required: false
+      description: 自定义请求头字典
+      default: {}
+    timeout:
+      type: int
+      required: false
+      description: 请求超时时间（秒）
+      default: 30
+  outputs:
+    success:
+      type: bool
+      description: 请求是否成功
+    result:
+      type: dict
+      description: 响应结果包含 status_code、headers、body、url
+semantics:
+  deterministic: false
+  side_effects:
+  - network
+  security:
+    sandbox_required: true
+    data_sensitivity: medium
+tests:
+  framework: builtin
+  cases:
+  - name: post_json
+    input:
+      url: https://httpbin.org/post
+      json_data:
+        name: test
+        value: 123
+      timeout: 10
+    expect:
+      success: true
+      result:
+        status_code: 200
+  - name: post_form
+    input:
+      url: https://httpbin.org/post
+      data:
+        username: admin
+        password: secret
+      timeout: 10
+    expect:
+      success: true
+  - name: post_with_headers
+    input:
+      url: https://httpbin.org/post
+      json_data:
+        action: test
+      headers:
+        X-Custom-Header: custom-value
+        Authorization: Bearer token123
+      timeout: 10
+    expect:
+      success: true
+  - name: empty_url
+    input:
+      url: ''
+      json_data:
+        test: data
+    expect:
+      success: false
+      result:
+        error: 'URL cannot be empty'
+tags:
+- http
+- network
+- request
+- post
+quality:
+  maturity: stable
+provenance:
+  created_at: '2026-02-06T11:00:00Z'
+  updated_at: '2026-02-06T11:00:00Z'
+  source:
+    kind: manual
