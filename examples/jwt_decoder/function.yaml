@@ -1,0 +1,41 @@
+spec_version: "0.1"
+id: "encoding.jwt.decode"
+version: "1.0.0"
+name: "JWT Decoder"
+description: "JWT令牌解码器，解析Header和Payload（不验证签名）"
+language:
+  name: "python"
+  runtime: "python>=3.8"
+entrypoint:
+  kind: "inline"
+  symbol: "decode_jwt"
+  code: |
+    import base64
+    import json
+    def decode_jwt(token: str) -> dict:
+        parts = token.split('.')
+        if len(parts) != 3:
+            return {"error": "Invalid JWT format"}
+        def decode_part(part):
+            padding = 4 - len(part) % 4
+            if padding != 4:
+                part += '=' * padding
+            try:
+                return json.loads(base64.urlsafe_b64decode(part))
+            except:
+                return None
+        header = decode_part(parts[0])
+        payload = decode_part(parts[1])
+        return {"header": header, "payload": payload, "algorithm": header.get('alg') if header else None}
+signature:
+  inputs:
+    token: {type: "string", required: true, description: "JWT令牌", example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjMifQ.signature"}
+  outputs:
+    header: {type: "object", required: false, description: "JWT头部"}
+    payload: {type: "object", required: false, description: "JWT载荷"}
+    algorithm: {type: "string", required: false, description: "算法"}
+    error: {type: "string", required: false}
+tests:
+  cases:
+    - {name: "解码JWT", input: {token: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.sig"}, expect: {algorithm: "HS256"}}
+tags: ["encoding", "jwt", "decode"]

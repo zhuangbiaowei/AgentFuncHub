@@ -1,0 +1,38 @@
+spec_version: "0.1"
+id: "list.flatten"
+version: "1.0.0"
+name: "List Flatten"
+description: "列表扁平化，将嵌套列表展开为一维列表"
+language:
+  name: "python"
+  runtime: "python>=3.8"
+entrypoint:
+  kind: "inline"
+  symbol: "flatten_list"
+  code: |
+    from typing import List, Any
+    def flatten_list(nested: List[Any], depth: int = None) -> dict:
+        result = []
+        def flatten(item, current_depth):
+            if depth is not None and current_depth >= depth:
+                result.append(item)
+            elif isinstance(item, list):
+                for sub in item:
+                    flatten(sub, current_depth + 1)
+            else:
+                result.append(item)
+        flatten(nested, 0)
+        return {"flattened": result, "original_length": len(nested), "flattened_length": len(result)}
+signature:
+  inputs:
+    nested: {type: "array", required: true, description: "嵌套列表", example: [[1, 2], [3, [4, 5]]]}
+    depth: {type: "integer", required: false, description: "最大深度", example: 1}
+  outputs:
+    flattened: {type: "array", description: "扁平化列表"}
+    original_length: {type: "integer", description: "原始长度"}
+    flattened_length: {type: "integer", description: "结果长度"}
+tests:
+  cases:
+    - {name: "完全扁平化", input: {nested: [[1, 2], [3, [4, 5]]]}, expect: {flattened: [1, 2, 3, 4, 5]}}
+    - {name: "部分扁平化", input: {nested: [[1, 2], [3, [4, 5]]], depth: 1}, expect: {flattened: [1, 2, 3, [4, 5]]}}
+tags: ["list", "flatten", "array"]

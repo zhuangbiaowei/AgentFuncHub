@@ -1,0 +1,45 @@
+spec_version: "0.1"
+id: "text.slug.chinese"
+version: "1.0.0"
+name: "Chinese Slug Generator"
+description: "中文Slug生成器，支持拼音转换"
+language:
+  name: "python"
+  runtime: "python>=3.8"
+entrypoint:
+  kind: "inline"
+  symbol: "chinese_slug"
+  code: |
+    import re
+    PINYIN_MAP = {
+        '一': 'yi', '二': 'er', '三': 'san', '四': 'si', '五': 'wu',
+        '六': 'liu', '七': 'qi', '八': 'ba', '九': 'jiu', '十': 'shi',
+        '中': 'zhong', '国': 'guo', '人': 'ren', '文': 'wen', '化': 'hua'
+    }
+    def chinese_slug(text: str, separator: str = "-") -> dict:
+        result = []
+        for char in text:
+            if char in PINYIN_MAP:
+                result.append(PINYIN_MAP[char])
+            elif re.match(r'[a-zA-Z0-9]', char):
+                result.append(char.lower())
+            elif char in ' 　-_':
+                result.append(separator)
+        slug = ''.join(result)
+        # 清理多余分隔符
+        slug = re.sub(f'{re.escape(separator)}+', separator, slug)
+        slug = slug.strip(separator)
+        return {"slug": slug, "original": text, "separator": separator}
+signature:
+  inputs:
+    text: {type: "string", required: true, description: "中文文本", example: "中国文化"}
+    separator: {type: "string", required: false, default: "-", description: "分隔符", example: "-"}
+  outputs:
+    slug: {type: "string", description: "Slug字符串"}
+    original: {type: "string", description: "原始文本"}
+    separator: {type: "string", description: "使用的分隔符"}
+tests:
+  cases:
+    - {name: "中文转slug", input: {text: "中国文化"}, expect: {slug: "zhong-guo-wen-hua"}}
+    - {name: "混合文本", input: {text: "Hello世界"}, expect: {slug: "hello-zhong"}}
+tags: ["text", "slug", "chinese", "pinyin"]

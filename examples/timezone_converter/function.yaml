@@ -1,0 +1,49 @@
+spec_version: "0.1"
+id: "time.timezone.convert"
+version: "1.0.0"
+name: "Timezone Converter"
+description: "时区转换器，转换时间到不同时区"
+language:
+  name: "python"
+  runtime: "python>=3.8"
+entrypoint:
+  kind: "inline"
+  symbol: "convert_timezone"
+  code: |
+    from datetime import datetime, timedelta
+    TIMEZONES = {
+        "UTC": 0, "GMT": 0,
+        "EST": -5, "CST": -6, "MST": -7, "PST": -8,
+        "CET": 1, "EET": 2,
+        "CST_CN": 8, "JST": 9
+    }
+    def convert_timezone(time_str: str, from_tz: str, to_tz: str, fmt: str = "%Y-%m-%d %H:%M:%S") -> dict:
+        try:
+            dt = datetime.strptime(time_str, fmt)
+        except:
+            return {"error": "Invalid time format"}
+        from_offset = TIMEZONES.get(from_tz.upper())
+        to_offset = TIMEZONES.get(to_tz.upper())
+        if from_offset is None or to_offset is None:
+            return {"error": "Unknown timezone"}
+        # 转换到UTC再转换到目标时区
+        utc_dt = dt - timedelta(hours=from_offset)
+        target_dt = utc_dt + timedelta(hours=to_offset)
+        return {"original": time_str, "converted": target_dt.strftime(fmt), "from": from_tz, "to": to_tz}
+signature:
+  inputs:
+    time_str: {type: "string", required: true, description: "时间字符串", example: "2024-01-01 12:00:00"}
+    from_tz: {type: "string", required: true, description: "源时区", example: "UTC"}
+    to_tz: {type: "string", required: true, description: "目标时区", example: "CST_CN"}
+    fmt: {type: "string", required: false, default: "%Y-%m-%d %H:%M:%S", description: "时间格式"}
+  outputs:
+    original: {type: "string", description: "原始时间"}
+    converted: {type: "string", description: "转换后时间"}
+    from: {type: "string", description: "源时区"}
+    to: {type: "string", description: "目标时区"}
+    error: {type: "string", required: false}
+tests:
+  cases:
+    - {name: "UTC转北京时间", input: {time_str: "2024-01-01 00:00:00", from_tz: "UTC", to_tz: "CST_CN"}, expect: {converted: "2024-01-01 08:00:00"}}
+    - {name: "纽约转伦敦", input: {time_str: "2024-01-01 12:00:00", from_tz: "EST", to_tz: "CET"}, expect: {converted: "2024-01-01 18:00:00"}}
+tags: ["time", "timezone", "convert"]

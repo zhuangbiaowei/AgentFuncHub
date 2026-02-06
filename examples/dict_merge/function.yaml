@@ -1,0 +1,35 @@
+spec_version: "0.1"
+id: "dict.deep.merge"
+version: "1.0.0"
+name: "Deep Merge"
+description: "深度合并字典，递归合并嵌套字典"
+language:
+  name: "python"
+  runtime: "python>=3.8"
+entrypoint:
+  kind: "inline"
+  symbol: "deep_merge"
+  code: |
+    from typing import Dict, Any
+    def deep_merge(dict1: Dict, dict2: Dict, overwrite: bool = True) -> dict:
+        result = dict1.copy()
+        for key, value in dict2.items():
+            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+                result[key] = deep_merge(result[key], value, overwrite)["merged"]
+            else:
+                if overwrite or key not in result:
+                    result[key] = value
+        return {"merged": result, "keys_merged": list(dict2.keys())}
+signature:
+  inputs:
+    dict1: {type: "object", required: true, description: "基础字典", example: {"a": 1, "b": {"c": 2}}}
+    dict2: {type: "object", required: true, description: "合并字典", example: {"b": {"d": 3}, "e": 4}}
+    overwrite: {type: "boolean", required: false, default: true, description: "是否覆盖", example: true}
+  outputs:
+    merged: {type: "object", description: "合并后的字典"}
+    keys_merged: {type: "array", description: "合并的键"}
+tests:
+  cases:
+    - {name: "简单合并", input: {dict1: {"a": 1}, dict2: {"b": 2}}, expect: {merged: {"a": 1, "b": 2}}}
+    - {name: "深度合并", input: {dict1: {"a": {"b": 1}}, dict2: {"a": {"c": 2}}}, expect: {merged: {"a": {"b": 1, "c": 2}}}}
+tags: ["dict", "merge", "deep"]

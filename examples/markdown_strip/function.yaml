@@ -1,0 +1,52 @@
+spec_version: "0.1"
+id: "text.markdown.strip"
+version: "1.0.0"
+name: "Markdown Strip"
+description: "去除Markdown标记，提取纯文本"
+language:
+  name: "python"
+  runtime: "python>=3.8"
+entrypoint:
+  kind: "inline"
+  symbol: "strip_markdown"
+  code: |
+    import re
+    def strip_markdown(text: str) -> dict:
+        # 移除代码块
+        text = re.sub(r'```[\s\S]*?```', '', text)
+        text = re.sub(r'`([^`]+)`', r'\1', text)
+        # 移除标题标记
+        text = re.sub(r'^#+\s*', '', text, flags=re.MULTILINE)
+        # 移除强调
+        text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
+        text = re.sub(r'\*([^*]+)\*', r'\1', text)
+        text = re.sub(r'__([^_]+)__', r'\1', text)
+        text = re.sub(r'_([^_]+)_', r'\1', text)
+        # 移除链接
+        text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)
+        text = re.sub(r'\[([^\]]+)\]\[[^\]]*\]', r'\1', text)
+        # 移除图片
+        text = re.sub(r'!\[[^\]]*\]\([^\)]+\)', '', text)
+        # 移除HTML标签
+        text = re.sub(r'<[^\u003e]+>', '', text)
+        # 移除列表标记
+        text = re.sub(r'^\s*[-*+]\s+', '', text, flags=re.MULTILINE)
+        text = re.sub(r'^\s*\d+\.\s+', '', text, flags=re.MULTILINE)
+        # 移除引用
+        text = re.sub(r'^\s*>\s*', '', text, flags=re.MULTILINE)
+        # 移除水平线
+        text = re.sub(r'\n-{3,}\n', '\n', text)
+        # 清理多余空白
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        return {"text": text.strip(), "length": len(text.strip())}
+signature:
+  inputs:
+    text: {type: "string", required: true, description: "Markdown文本", example: "# Title\n\n**Bold** text"}
+  outputs:
+    text: {type: "string", description: "纯文本"}
+    length: {type: "integer", description: "文本长度"}
+tests:
+  cases:
+    - {name: "去除标题", input: {text: "# Hello World"}, expect: {text: "Hello World"}}
+    - {name: "去除强调", input: {text: "**bold** and *italic*"}, expect: {text: "bold and italic"}}
+tags: ["text", "markdown", "strip"]

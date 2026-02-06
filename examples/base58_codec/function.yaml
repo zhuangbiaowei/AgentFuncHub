@@ -1,0 +1,39 @@
+spec_version: "0.1"
+id: "encoding.base58"
+version: "1.0.0"
+name: "Base58 Codec"
+description: "Base58编解码，常用于加密货币地址"
+language:
+  name: "python"
+  runtime: "python>=3.8"
+entrypoint:
+  kind: "inline"
+  symbol: "base58_codec"
+  code: |
+    ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+    def base58_codec(data: str, action: str = "encode") -> dict:
+        if action == "encode":
+            num = int.from_bytes(data.encode(), 'big')
+            result = ''
+            while num > 0:
+                num, rem = divmod(num, 58)
+                result = ALPHABET[rem] + result
+            return {"result": result, "action": "encode"}
+        else:
+            num = 0
+            for char in data:
+                num = num * 58 + ALPHABET.index(char)
+            result = num.to_bytes((num.bit_length() + 7) // 8, 'big').decode()
+            return {"result": result, "action": "decode"}
+signature:
+  inputs:
+    data: {type: "string", required: true, description: "数据", example: "hello"}
+    action: {type: "string", required: false, default: "encode", description: "操作", example: "encode"}
+  outputs:
+    result: {type: "string", description: "结果"}
+    action: {type: "string", description: "操作类型"}
+tests:
+  cases:
+    - {name: "编码", input: {data: "hello", action: "encode"}, expect: {action: "encode"}}
+    - {name: "解码", input: {data: "Cn8eVZg", action: "decode"}, expect: {action: "decode"}}
+tags: ["encoding", "base58", "crypto"]
