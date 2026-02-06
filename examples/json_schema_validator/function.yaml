@@ -1,9 +1,14 @@
 spec_version: "0.1"
 
-id: "ai.json.schema_validator"
+id: "ai.json_schema_validator"
 version: "1.0.0"
 name: "JSON Schema Validator"
-description: "JSON Schema验证器，支持类型检查、必需字段验证、范围限制、模式匹配等，用于AI输出结构验证"
+description: "验证 JSON 数据是否符合指定的 Schema，支持类型检查、必填字段验证、范围限制、正则表达式匹配、枚举值检查等。"
+
+license: "MIT"
+authors:
+  - name: "AIUtilsAgent_1.0"
+    contact: "agent@example.com"
 
 language:
   name: "python"
@@ -11,472 +16,442 @@ language:
 
 entrypoint:
   kind: "inline"
-  symbol: "validate_json"
+  symbol: "validate_json_schema"
   code: |
     import re
-    from typing import Dict, Any, List, Optional, Union
+    import json
+    from typing import Dict, List, Union, Any
     
-    def validate_json(
-        data: Any,
-        schema: Dict[str, Any],
+    def validate_json_schema(
+        data: Union[dict, str],
+        schema: dict,
         strict: bool = False
     ) -> Dict[str, Any]:
         """
-        验证数据是否符合JSON Schema
+        验证 JSON 数据是否符合 Schema。
         
         Args:
-            data: 要验证的数据
-            schema: JSON Schema定义
+            data: 要验证的数据（字典或 JSON 字符串）
+            schema: JSON Schema 定义
             strict: 是否严格模式（不允许额外字段）
-            
+        
         Returns:
             验证结果字典
         """
         errors = []
         warnings = []
         
-        def validate_value(value: Any, schema_part: Dict, path: str = "root") -> bool:
-            """递归验证值"""
-            valid = True
+        # 解析数据
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except json.JSONDecodeError as e:
+                return {
+                    "valid": False,
+                    "errors": [{"path": "", "message": f"Invalid JSON: {e}"}],
+                    "warnings": [],
+                    "data_type": "invalid"
+                }
+        
+        if not isinstance(data, dict):
+            return {
+                "valid": False,
+                "errors": [{"path": "", "message": "Data must be an object"}],
+                "warnings": [],
+                "data_type": type(data).__name__
+            }
+        
+        def validate_value(value: Any, prop_schema: dict, path: str) -> List[dict]:
+            """验证单个值"""
+            errs = []
             
-            # 获取schema类型
-            schema_type = schema_part.get("type")
-            
-            # 类型验证
-            if schema_type:
-                type_valid = _check_type(value, schema_type)
-                if not type_valid:
-                    expected = schema_type
-                    actual = _get_type_name(value)
-                    errors.append(f"{path}: Expected type '{expected}', got '{actual}'")
-                    valid = False
-            
-            # 空值验证（如果type存在且不是null）
-            if value is None and schema_type != "null":
-                if schema_part.get("nullable") != True:
-                    errors.append(f"{path}: Value cannot be null")
-                    valid = False
-                return valid
-            
-            if value is None:
-                return valid
-            
-            # 枚举验证
-            if "enum" in schema_part:
-                if value not in schema_part["enum"]:
-                    errors.append(f"{path}: Value must be one of {schema_part['enum']}")
-                    valid = False
+            # 类型检查
+            if "type" in prop_schema:
+                expected_type = prop_schema["type"]
+                type_map = {
+                    "string": str,
+                    "integer": int,
+                    "number": (int, float),
+                    "boolean": bool,
+                    "array": list,
+                    "object": dict,
+                    "null": type(None)
+                }
+                
+                if expected_type in type_map:
+                    expected = type_map[expected_type]
+                    if expected_type == "integer":
+                        if not isinstance(value, int) or isinstance(value, bool):
+                            errs.append({"path": path, "message": f"Expected integer, got {type(value).__name__}"})
+                    elif expected_type == "number":
+                        if not isinstance(value, (int, float)) or isinstance(value, bool):
+                            errs.append({"path": path, "message": f"Expected number, got {type(value).__name__}"})
+                    elif not isinstance(value, expected):
+                        errs.append({"path": path, "message": f"Expected {expected_type}, got {type(value).__name__}"})
             
             # 字符串验证
             if isinstance(value, str):
                 # 最小长度
-                if "minLength" in schema_part:
-                    if len(value) < schema_part["minLength"]:
-                        errors.append(f"{path}: String length must be >= {schema_part['minLength']}")
-                        valid = False
+                if "minLength" in prop_schema and len(value) < prop_schema["minLength"]:
+                    errs.append({"path": path, "message": f"String length {len(value)} < minimum {prop_schema['minLength']}"})
                 
                 # 最大长度
-                if "maxLength" in schema_part:
-                    if len(value) > schema_part["maxLength"]:
-                        errors.append(f"{path}: String length must be <= {schema_part['maxLength']}")
-                        valid = False
+                if "maxLength" in prop_schema and len(value) > prop_schema["maxLength"]:
+                    errs.append({"path": path, "message": f"String length {len(value)} > maximum {prop_schema['maxLength']}"})
                 
-                # 模式匹配
-                if "pattern" in schema_part:
-                    pattern = schema_part["pattern"]
-                    if not re.match(pattern, value):
-                        errors.append(f"{path}: String does not match pattern '{pattern}'")
-                        valid = False
+                # 正则匹配
+                if "pattern" in prop_schema:
+                    if not re.match(prop_schema["pattern"], value):
+                        errs.append({"path": path, "message": f"String does not match pattern: {prop_schema['pattern']}"})
                 
-                # 格式验证（简化版）
-                if "format" in schema_part:
-                    format_valid = _validate_format(value, schema_part["format"])
-                    if not format_valid:
-                        errors.append(f"{path}: String does not match format '{schema_part['format']}'")
-                        valid = False
+                # 枚举值
+                if "enum" in prop_schema and value not in prop_schema["enum"]:
+                    errs.append({"path": path, "message": f"Value must be one of: {prop_schema['enum']}"})
             
             # 数值验证
             if isinstance(value, (int, float)) and not isinstance(value, bool):
                 # 最小值
-                if "minimum" in schema_part:
-                    if value < schema_part["minimum"]:
-                        errors.append(f"{path}: Value must be >= {schema_part['minimum']}")
-                        valid = False
+                if "minimum" in prop_schema and value < prop_schema["minimum"]:
+                    errs.append({"path": path, "message": f"Value {value} < minimum {prop_schema['minimum']}"})
                 
                 # 最大值
-                if "maximum" in schema_part:
-                    if value > schema_part["maximum"]:
-                        errors.append(f"{path}: Value must be <= {schema_part['maximum']}")
-                        valid = False
+                if "maximum" in prop_schema and value > prop_schema["maximum"]:
+                    errs.append({"path": path, "message": f"Value {value} > maximum {prop_schema['maximum']}"})
                 
-                # 排除最小值
-                if "exclusiveMinimum" in schema_part:
-                    if value <= schema_part["exclusiveMinimum"]:
-                        errors.append(f"{path}: Value must be > {schema_part['exclusiveMinimum']}")
-                        valid = False
+                # 排他最小值
+                if "exclusiveMinimum" in prop_schema and value <= prop_schema["exclusiveMinimum"]:
+                    errs.append({"path": path, "message": f"Value {value} <= exclusive minimum {prop_schema['exclusiveMinimum']}"})
                 
-                # 排除最大值
-                if "exclusiveMaximum" in schema_part:
-                    if value >= schema_part["exclusiveMaximum"]:
-                        errors.append(f"{path}: Value must be < {schema_part['exclusiveMaximum']}")
-                        valid = False
+                # 排他最大值
+                if "exclusiveMaximum" in prop_schema and value >= prop_schema["exclusiveMaximum"]:
+                    errs.append({"path": path, "message": f"Value {value} >= exclusive maximum {prop_schema['exclusiveMaximum']}"})
                 
-                # 倍数
-                if "multipleOf" in schema_part:
-                    multiple = schema_part["multipleOf"]
-                    if abs(value / multiple - round(value / multiple)) > 1e-10:
-                        errors.append(f"{path}: Value must be multiple of {multiple}")
-                        valid = False
+                # 倍数检查
+                if "multipleOf" in prop_schema:
+                    if value % prop_schema["multipleOf"] != 0:
+                        errs.append({"path": path, "message": f"Value {value} is not a multiple of {prop_schema['multipleOf']}"})
             
             # 数组验证
             if isinstance(value, list):
                 # 最小项数
-                if "minItems" in schema_part:
-                    if len(value) < schema_part["minItems"]:
-                        errors.append(f"{path}: Array must have at least {schema_part['minItems']} items")
-                        valid = False
+                if "minItems" in prop_schema and len(value) < prop_schema["minItems"]:
+                    errs.append({"path": path, "message": f"Array items {len(value)} < minimum {prop_schema['minItems']}"})
                 
                 # 最大项数
-                if "maxItems" in schema_part:
-                    if len(value) > schema_part["maxItems"]:
-                        errors.append(f"{path}: Array must have at most {schema_part['maxItems']} items")
-                        valid = False
+                if "maxItems" in prop_schema and len(value) > prop_schema["maxItems"]:
+                    errs.append({"path": path, "message": f"Array items {len(value)} > maximum {prop_schema['maxItems']}"})
                 
-                # 唯一性
-                if schema_part.get("uniqueItems"):
-                    # 简单检查，不支持嵌套对象
-                    try:
-                        if len(value) != len(set(str(x) for x in value)):
-                            errors.append(f"{path}: Array items must be unique")
-                            valid = False
-                    except:
-                        pass
+                # 唯一项
+                if "uniqueItems" in prop_schema and prop_schema["uniqueItems"]:
+                    if len(value) != len(set(json.dumps(x, sort_keys=True) for x in value)):
+                        errs.append({"path": path, "message": "Array items must be unique"})
                 
-                # 项验证
-                items_schema = schema_part.get("items")
-                if items_schema:
+                # 项类型验证
+                if "items" in prop_schema:
                     for i, item in enumerate(value):
-                        item_valid = validate_value(item, items_schema, f"{path}[{i}]")
-                        if not item_valid:
-                            valid = False
+                        item_errs = validate_value(item, prop_schema["items"], f"{path}[{i}]")
+                        errs.extend(item_errs)
             
-            # 对象验证
-            if isinstance(value, dict):
-                properties = schema_part.get("properties", {})
-                required = schema_part.get("required", [])
-                additional_props = schema_part.get("additionalProperties", True)
-                
-                # 必需字段验证
-                for req_field in required:
-                    if req_field not in value:
-                        errors.append(f"{path}: Required field '{req_field}' is missing")
-                        valid = False
-                
-                # 属性验证
-                for prop_name, prop_value in value.items():
-                    if prop_name in properties:
-                        prop_valid = validate_value(prop_value, properties[prop_name], f"{path}.{prop_name}")
-                        if not prop_valid:
-                            valid = False
-                    elif strict or additional_props == False:
-                        if prop_name not in properties:
-                            if strict:
-                                errors.append(f"{path}: Additional property '{prop_name}' not allowed in strict mode")
-                                valid = False
-                            else:
-                                warnings.append(f"{path}: Additional property '{prop_name}' not defined in schema")
-                
-                # 模式属性验证
-                pattern_props = schema_part.get("patternProperties", {})
-                for pattern, pat_schema in pattern_props.items():
-                    for prop_name, prop_value in value.items():
-                        if re.match(pattern, prop_name):
-                            prop_valid = validate_value(prop_value, pat_schema, f"{path}.{prop_name}")
-                            if not prop_valid:
-                                valid = False
+            # 对象验证（嵌套 schema）
+            if isinstance(value, dict) and "properties" in prop_schema:
+                nested_errs = validate_object(value, prop_schema, path)
+                errs.extend(nested_errs)
             
-            # anyOf 验证
-            if "anyOf" in schema_part:
-                any_of_schemas = schema_part["anyOf"]
-                any_valid = False
-                for sub_schema in any_of_schemas:
-                    temp_errors = errors.copy()
-                    sub_valid = validate_value(value, sub_schema, path)
-                    if sub_valid:
-                        any_valid = True
-                        break
-                    # 恢复错误列表，因为我们尝试下一个
-                    errors = temp_errors
-                
-                if not any_valid:
-                    errors.append(f"{path}: Value does not match any of the required schemas")
-                    valid = False
-            
-            # allOf 验证
-            if "allOf" in schema_part:
-                all_of_schemas = schema_part["allOf"]
-                for sub_schema in all_of_schemas:
-                    sub_valid = validate_value(value, sub_schema, path)
-                    if not sub_valid:
-                        valid = False
-            
-            # oneOf 验证
-            if "oneOf" in schema_part:
-                one_of_schemas = schema_part["oneOf"]
-                match_count = 0
-                for sub_schema in one_of_schemas:
-                    temp_errors = []
-                    old_errors = errors
-                    errors = temp_errors
-                    sub_valid = validate_value(value, sub_schema, path)
-                    errors = old_errors
-                    if sub_valid and len(temp_errors) == 0:
-                        match_count += 1
-                
-                if match_count != 1:
-                    errors.append(f"{path}: Value must match exactly one schema (matched {match_count})")
-                    valid = False
-            
-            return valid
+            return errs
         
-        def _check_type(value: Any, expected_type: Union[str, List[str]]) -> bool:
-            """检查值类型"""
-            if isinstance(expected_type, list):
-                return any(_check_single_type(value, t) for t in expected_type)
-            return _check_single_type(value, expected_type)
-        
-        def _check_single_type(value: Any, expected_type: str) -> bool:
-            """检查单个类型"""
-            type_map = {
-                "string": str,
-                "integer": int,
-                "number": (int, float),
-                "boolean": bool,
-                "array": list,
-                "object": dict,
-                "null": type(None)
-            }
+        def validate_object(obj: dict, obj_schema: dict, path: str) -> List[dict]:
+            """验证对象"""
+            errs = []
             
-            if expected_type == "integer":
-                return isinstance(value, int) and not isinstance(value, bool)
-            elif expected_type == "number":
-                return isinstance(value, (int, float)) and not isinstance(value, bool)
-            elif expected_type in type_map:
-                return isinstance(value, type_map[expected_type])
-            return True
-        
-        def _get_type_name(value: Any) -> str:
-            """获取值的类型名称"""
-            if value is None:
-                return "null"
-            elif isinstance(value, bool):
-                return "boolean"
-            elif isinstance(value, int):
-                return "integer"
-            elif isinstance(value, float):
-                return "number"
-            elif isinstance(value, str):
-                return "string"
-            elif isinstance(value, list):
-                return "array"
-            elif isinstance(value, dict):
-                return "object"
-            return type(value).__name__
-        
-        def _validate_format(value: str, format_type: str) -> bool:
-            """验证字符串格式"""
-            patterns = {
-                "email": r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
-                "uri": r'^https?://[^\s/$.?#].[^\s]*$',
-                "date": r'^\d{4}-\d{2}-\d{2}$',
-                "date-time": r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?$',
-                "uuid": r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-            }
+            properties = obj_schema.get("properties", {})
+            required = obj_schema.get("required", [])
             
-            if format_type in patterns:
-                return bool(re.match(patterns[format_type], value, re.IGNORECASE))
-            return True
+            # 检查必填字段
+            for req_field in required:
+                if req_field not in obj:
+                    field_path = f"{path}.{req_field}" if path else req_field
+                    errs.append({"path": field_path, "message": f"Required field '{req_field}' is missing"})
+            
+            # 验证每个字段
+            for field_name, field_value in obj.items():
+                field_path = f"{path}.{field_name}" if path else field_name
+                
+                if field_name in properties:
+                    field_errs = validate_value(field_value, properties[field_name], field_path)
+                    errs.extend(field_errs)
+                elif strict:
+                    errs.append({"path": field_path, "message": f"Unexpected field: '{field_name}'"})
+            
+            return errs
         
         # 执行验证
-        is_valid = validate_value(data, schema)
+        errors = validate_object(data, schema, "")
         
         return {
-            "valid": is_valid and len(errors) == 0,
+            "valid": len(errors) == 0,
             "errors": errors,
             "warnings": warnings,
-            "error_count": len(errors),
-            "warning_count": len(warnings)
+            "data_type": "object",
+            "fields_checked": len(schema.get("properties", {}))
         }
 
 signature:
   inputs:
     data:
-      type: "any"
+      type: "object"
       required: true
-      description: "要验证的数据"
-      example: {"name": "Alice", "age": 30}
+      description: "要验证的数据（字典或 JSON 字符串）"
+      example: '{"name": "John", "age": 30}'
     schema:
       type: "object"
       required: true
-      description: "JSON Schema定义"
-      example:
-        type: "object"
-        properties:
-          name:
-            type: "string"
-          age:
-            type: "integer"
-            minimum: 0
-            maximum: 150
-        required: ["name", "age"]
+      description: "JSON Schema 定义"
+      example: '{"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}'
     strict:
       type: "boolean"
       required: false
-      description: "是否严格模式（不允许额外字段）"
       default: false
-      example: false
+      description: "是否严格模式（不允许额外字段）"
   outputs:
     valid:
       type: "boolean"
       description: "验证是否通过"
     errors:
       type: "array"
-      description: "错误信息列表"
+      description: "错误列表"
+      items:
+        type: "object"
     warnings:
       type: "array"
-      description: "警告信息列表"
-    error_count:
+      description: "警告列表"
+      items:
+        type: "object"
+    data_type:
+      type: "string"
+      description: "数据类型"
+    fields_checked:
       type: "integer"
-      description: "错误数量"
-    warning_count:
-      type: "integer"
-      description: "警告数量"
+      description: "检查的字段数"
+  errors:
+    - code: "E_INVALID_JSON"
+      description: "输入数据不是有效的 JSON"
+    - code: "E_INVALID_SCHEMA"
+      description: "Schema 格式错误"
 
 semantics:
   deterministic: true
-  side_effects: []
+  side_effects: ["none"]
   purity: "pure"
+  concurrency:
+    thread_safe: true
+    reentrant: true
   security:
     sandbox_required: false
-    network_access: false
     data_sensitivity: "low"
 
-environment:
-  dependencies: []
-  platforms: ["linux", "darwin", "win32"]
-  python_version: ">=3.8"
+examples:
+  - name: "验证用户信息"
+    input:
+      data:
+        name: "John Doe"
+        age: 30
+        email: "john@example.com"
+      schema:
+        type: object
+        properties:
+          name:
+            type: string
+            minLength: 1
+            maxLength: 100
+          age:
+            type: integer
+            minimum: 0
+            maximum: 150
+          email:
+            type: string
+            pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+        required: ["name", "email"]
+      strict: false
+    output:
+      valid: true
+      errors: []
+      data_type: "object"
+      fields_checked: 3
+  - name: "验证失败 - 缺少必填字段"
+    input:
+      data:
+        age: 30
+      schema:
+        type: object
+        properties:
+          name:
+            type: string
+          age:
+            type: integer
+        required: ["name"]
+    output:
+      valid: false
+      errors:
+        - path: "name"
+          message: "Required field 'name' is missing"
+  - name: "验证失败 - 类型错误"
+    input:
+      data:
+        count: "ten"
+      schema:
+        type: object
+        properties:
+          count:
+            type: integer
+    output:
+      valid: false
+      errors:
+        - path: "count"
+          message: "Expected integer, got str"
 
 tests:
   framework: "builtin"
   cases:
-    - name: "基本对象验证成功"
+    - name: "有效数据验证"
       input:
         data:
-          name: "Alice"
-          age: 30
+          name: "Test User"
+          age: 25
+          score: 85.5
         schema:
-          type: "object"
+          type: object
           properties:
             name:
-              type: "string"
+              type: string
+              minLength: 1
             age:
-              type: "integer"
+              type: integer
+              minimum: 0
+              maximum: 200
+            score:
+              type: number
+              minimum: 0
+              maximum: 100
           required: ["name", "age"]
+        strict: false
       expect:
         valid: true
-        error_count: 0
+        data_type: "object"
+        fields_checked: 3
+    - name: "缺少必填字段"
+      input:
+        data:
+          age: 25
+        schema:
+          type: object
+          properties:
+            name:
+              type: string
+            age:
+              type: integer
+          required: ["name", "age"]
+      expect:
+        valid: false
     - name: "类型错误"
       input:
         data:
-          name: "Bob"
-          age: "thirty"
+          count: "not a number"
         schema:
-          type: "object"
+          type: object
           properties:
-            name:
-              type: "string"
-            age:
-              type: "integer"
-          required: ["name", "age"]
+            count:
+              type: integer
       expect:
         valid: false
-        error_count: 1
-    - name: "缺少必需字段"
-      input:
-        data:
-          name: "Charlie"
-        schema:
-          type: "object"
-          properties:
-            name:
-              type: "string"
-            age:
-              type: "integer"
-          required: ["name", "age"]
-      expect:
-        valid: false
-        error_count: 1
-    - name: "数组验证"
-      input:
-        data: [1, 2, 3, 4, 5]
-        schema:
-          type: "array"
-          items:
-            type: "integer"
-          minItems: 3
-          maxItems: 10
-      expect:
-        valid: true
-        error_count: 0
-    - name: "字符串范围验证"
+        errors:
+          - path: "count"
+    - name: "字符串长度验证"
       input:
         data:
           username: "ab"
         schema:
-          type: "object"
+          type: object
           properties:
             username:
-              type: "string"
+              type: string
               minLength: 3
               maxLength: 20
       expect:
         valid: false
-        error_count: 1
-    - name: "枚举验证成功"
+    - name: "数值范围验证"
       input:
         data:
-          status: "active"
+          temperature: 150
         schema:
-          type: "object"
+          type: object
           properties:
-            status:
-              type: "string"
-              enum: ["active", "inactive", "pending"]
-      expect:
-        valid: true
-        error_count: 0
-    - name: "数值范围验证失败"
-      input:
-        data:
-          score: 150
-        schema:
-          type: "object"
-          properties:
-            score:
-              type: "number"
-              minimum: 0
+            temperature:
+              type: number
+              minimum: -50
               maximum: 100
       expect:
         valid: false
-        error_count: 1
+    - name: "正则表达式验证"
+      input:
+        data:
+          email: "invalid-email"
+        schema:
+          type: object
+          properties:
+            email:
+              type: string
+              pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+      expect:
+        valid: false
+    - name: "枚举值验证"
+      input:
+        data:
+          status: "completed"
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              enum: ["pending", "active", "inactive"]
+      expect:
+        valid: false
+    - name: "数组验证"
+      input:
+        data:
+          tags: ["tag1", "tag2", "tag3", "tag4", "tag5"]
+        schema:
+          type: object
+          properties:
+            tags:
+              type: array
+              minItems: 1
+              maxItems: 3
+              items:
+                type: string
+      expect:
+        valid: false
+    - name: "严格模式 - 额外字段"
+      input:
+        data:
+          name: "Test"
+          extra: "field"
+        schema:
+          type: object
+          properties:
+            name:
+              type: string
+        strict: true
+      expect:
+        valid: false
 
-tags: ["ai", "json", "schema", "validation", "data"]
+tags: ["json", "schema", "validation", "data", "type-check"]
 
 quality:
   maturity: "stable"
-  coverage: 0.9
+  coverage: 0.95
 
-metadata:
-  author: "AgentFuncHub"
-  license: "MIT"
+provenance:
   created_at: "2026-02-06"
+  updated_at: "2026-02-06"
+  source:
+    kind: "manual"

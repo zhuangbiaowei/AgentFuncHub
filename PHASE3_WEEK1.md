@@ -77,23 +77,33 @@
 
 ---
 
-### Day 5 (2月10日) - 实用工具函数 (5个)
+### Day 5 (2月10日) - 实用工具函数 (5个) ✅
 
-- [ ] `cache_manager` - 缓存管理器
-- [ ] `retry_decorator` - 重试装饰器
-- [ ] `memoize` - 记忆化函数
-- [ ] `throttle` - 节流器
-- [ ] `debounce` - 防抖器
+- [x] `cache_manager` - 缓存管理器 (ID: `utils.cache.manager`)
+- [x] `retry_decorator` - 重试装饰器 (ID: `utils.retry.decorator`)
+- [x] `memoize` - 记忆化函数 (ID: `utils.memoize`)
+- [x] `throttle` - 节流器 (ID: `utils.throttle`)
+- [x] `debounce` - 防抖器 (ID: `utils.debounce`)
+
+**验收标准**:
+- ✅ 每个函数包含完整的 FunctionSpec v0.1
+- ✅ 每个函数至少 4 个测试用例
+- ✅ 全部通过验证脚本
 
 ---
 
-### Day 6 (2月11日) - 实用工具函数 (5个)
+### Day 6 (2月11日) - 实用工具函数 (5个) ✅
 
-- [ ] `event_emitter` - 事件发射器
-- [ ] `state_machine` - 状态机
-- [ ] `pipeline_builder` - 管道构建器
-- [ ] `config_loader` - 配置加载器
-- [ ] `logger_formatter` - 日志格式化器
+- [x] `event_emitter` - 事件发射器 (ID: `utils.event.emitter`)
+- [x] `state_machine` - 状态机 (ID: `utils.state.machine`)
+- [x] `pipeline_builder` - 管道构建器 (ID: `utils.pipeline.builder`)
+- [x] `config_loader` - 配置加载器 (ID: `utils.config.loader`)
+- [x] `logger_formatter` - 日志格式化器 (ID: `utils.logger.formatter`)
+
+**验收标准**:
+- ✅ 每个函数包含完整的 FunctionSpec v0.1
+- ✅ 每个函数至少 4 个测试用例
+- ✅ 全部通过验证脚本
 
 ---
 
@@ -242,11 +252,11 @@ def calculate_quality_score(func_spec):
 | 2/7 | 网络函数 5个 | ✅ | 已完成 |
 | 2/8 | AI 工具 5个 | ✅ | 已完成 |
 | 2/9 | 审核机制 | ⏳ | 待开始 |
-| 2/10 | 实用工具 5个 | ⏳ | 待开始 |
-| 2/11 | 实用工具 5个 | ⏳ | 待开始 |
+| 2/10 | 实用工具 5个 | ✅ | 已完成 |
+| 2/11 | 实用工具 5个 | ✅ | 已完成 |
 | 2/12 | 整合测试 | ⏳ | 待开始 |
 
 ---
 
 *创建: 2026-02-06*  
-*更新: 2026-02-06*
+*更新: 2026-02-06 12:55*

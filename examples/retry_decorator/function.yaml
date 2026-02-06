@@ -1,0 +1,281 @@
+spec_version: "0.1"
+
+id: "utils.retry.decorator"
+version: "1.0.0"
+name: "Retry Decorator"
+description: "函数重试装饰器，支持指数退避、固定间隔、指定重试异常类型"
+
+language:
+  name: "python"
+  runtime: "python>=3.8"
+
+entrypoint:
+  kind: "inline"
+  symbol: "retry_with_config"
+  code: |
+    import time
+    import random
+    from typing import Dict, Any, List, Optional, Callable
+    
+    def retry_with_config(
+        func_code: str,
+        func_name: str = "target_function",
+        max_attempts: int = 3,
+        delay: float = 1.0,
+        backoff: str = "fixed",
+        exceptions: List[str] = None,
+        on_retry: Optional[str] = None,
+        args: Optional[List] = None,
+        kwargs: Optional[Dict] = None
+    ) -> Dict[str, Any]:
+        """
+        带重试机制执行函数
+        
+        Args:
+            func_code: 要执行的函数代码字符串
+            func_name: 函数名
+            max_attempts: 最大尝试次数
+            delay: 初始延迟(秒)
+            backoff: 退避策略 ("fixed", "exponential", "linear")
+            exceptions: 要捕获的异常类型列表 ["Exception", "ValueError"]
+            on_retry: 重试时的回调代码
+            args: 函数位置参数
+            kwargs: 函数关键字参数
+            
+        Returns:
+            执行结果字典
+        """
+        if exceptions is None:
+            exceptions = ["Exception"]
+        if args is None:
+            args = []
+        if kwargs is None:
+            kwargs = {}
+        
+        # 编译函数代码
+        try:
+            namespace = {}
+            exec(func_code, namespace)
+            target_func = namespace.get(func_name)
+            
+            if target_func is None:
+                return {
+                    "success": False,
+                    "error": f"Function '{func_name}' not found in code",
+                    "attempts": 0
+                }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Failed to compile function: {str(e)}",
+                "attempts": 0
+            }
+        
+        # 编译回调
+        retry_callback = None
+        if on_retry:
+            try:
+                callback_namespace = {}
+                exec(on_retry, callback_namespace)
+                retry_callback = callback_namespace.get('on_retry')
+            except:
+                pass
+        
+        # 异常类型映射
+        exception_types = {
+            "Exception": Exception,
+            "ValueError": ValueError,
+            "TypeError": TypeError,
+            "KeyError": KeyError,
+            "IndexError": IndexError,
+            "AttributeError": AttributeError,
+            "RuntimeError": RuntimeError,
+            "IOError": IOError,
+            "ConnectionError": ConnectionError,
+            "TimeoutError": TimeoutError
+        }
+        
+        # 获取要捕获的异常类型
+        retry_exceptions = tuple(
+            exception_types.get(e, Exception) for e in exceptions
+        )
+        
+        last_error = None
+        current_delay = delay
+        
+        for attempt in range(1, max_attempts + 1):
+            try:
+                result = target_func(*args, **kwargs)
+                return {
+                    "success": True,
+                    "result": result,
+                    "attempts": attempt,
+                    "retries": attempt - 1
+                }
+            except retry_exceptions as e:
+                last_error = str(e)
+                
+                if attempt == max_attempts:
+                    break
+                
+                # 调用重试回调
+                if retry_callback:
+                    try:
+                        retry_callback(attempt, last_error)
+                    except:
+                        pass
+                
+                # 等待
+                time.sleep(current_delay)
+                
+                # 计算下次延迟
+                if backoff == "exponential":
+                    current_delay = delay * (2 ** (attempt - 1))
+                elif backoff == "linear":
+                    current_delay = delay * attempt
+                elif backoff == "jitter":
+                    current_delay = delay * (2 ** (attempt - 1)) + random.uniform(0, 1)
+                # fixed: 保持当前 delay 不变
+        
+        return {
+            "success": False,
+            "error": last_error,
+            "attempts": max_attempts,
+            "retries": max_attempts - 1,
+            "max_attempts_reached": True
+        }
+
+signature:
+  inputs:
+    func_code:
+      type: "string"
+      required: true
+      description: "要执行的函数代码"
+      example: "def target_function():\n    import random\n    if random.random() < 0.7:\n        raise ValueError('Random failure')\n    return 'success'"
+    func_name:
+      type: "string"
+      required: false
+      description: "函数名"
+      default: "target_function"
+      example: "target_function"
+    max_attempts:
+      type: "integer"
+      required: false
+      description: "最大尝试次数"
+      default: 3
+      example: 3
+    delay:
+      type: "number"
+      required: false
+      description: "初始延迟(秒)"
+      default: 1.0
+      example: 1.0
+    backoff:
+      type: "string"
+      required: false
+      description: "退避策略"
+      default: "fixed"
+      example: "exponential"
+    exceptions:
+      type: "array"
+      required: false
+      description: "要捕获的异常类型"
+      default: ["Exception"]
+      example: ["ValueError", "ConnectionError"]
+    on_retry:
+      type: "string"
+      required: false
+      description: "重试回调代码"
+      default: null
+      example: "def on_retry(attempt, error):\n    print(f'Retry {attempt}: {error}')"
+    args:
+      type: "array"
+      required: false
+      description: "函数位置参数"
+      default: []
+      example: ["arg1", "arg2"]
+    kwargs:
+      type: "object"
+      required: false
+      description: "函数关键字参数"
+      default: {}
+      example: {"key": "value"}
+  outputs:
+    success:
+      type: "boolean"
+      description: "是否成功"
+    result:
+      type: "any"
+      required: false
+      description: "函数返回结果"
+    attempts:
+      type: "integer"
+      description: "尝试次数"
+    retries:
+      type: "integer"
+      description: "重试次数"
+    error:
+      type: "string"
+      required: false
+      description: "错误信息"
+    max_attempts_reached:
+      type: "boolean"
+      required: false
+      description: "是否达到最大尝试次数"
+
+semantics:
+  deterministic: false
+  side_effects: ["memory"]
+  purity: "impure"
+  security:
+    sandbox_required: true
+    network_access: false
+    data_sensitivity: "medium"
+
+tests:
+  framework: "builtin"
+  cases:
+    - name: "成功执行无需重试"
+      input:
+        func_code: "def target_function():\n    return 'success'"
+        max_attempts: 3
+      expect:
+        success: true
+        attempts: 1
+        retries: 0
+    - name: "固定延迟重试"
+      input:
+        func_code: "def target_function():\n    return 'success'"
+        max_attempts: 3
+        delay: 0.1
+        backoff: "fixed"
+      expect:
+        success: true
+    - name: "指数退避"
+      input:
+        func_code: "def target_function():\n    return 'success'"
+        max_attempts: 3
+        delay: 0.1
+        backoff: "exponential"
+      expect:
+        success: true
+    - name: "指定异常类型"
+      input:
+        func_code: "def target_function():\n    raise ValueError('test error')"
+        max_attempts: 2
+        delay: 0.1
+        exceptions: ["ValueError"]
+      expect:
+        success: false
+        attempts: 2
+
+tags: ["utils", "retry", "resilience", "error-handling"]
+
+quality:
+  maturity: "stable"
+  coverage: 0.85
+
+metadata:
+  author: "AgentFuncHub"
+  license: "MIT"
+  created_at: "2026-02-06"

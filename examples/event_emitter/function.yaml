@@ -1,0 +1,60 @@
+spec_version: "0.1"
+id: "utils.event.emitter"
+version: "1.0.0"
+name: "Event Emitter"
+description: "事件发射器，支持事件的订阅、发布和取消订阅"
+language:
+  name: "python"
+  runtime: "python>=3.8"
+entrypoint:
+  kind: "inline"
+  symbol: "event_emitter"
+  code: |
+    _events = {}
+    def event_emitter(action: str = "emit", event: str = "", listener: str = None, data = None, once: bool = False):
+        global _events
+        if action == "on":
+            if event not in _events:
+                _events[event] = []
+            _events[event].append({"listener": listener, "once": once})
+            return {"subscribed": True, "event": event}
+        elif action == "emit":
+            listeners = _events.get(event, [])
+            results = []
+            to_remove = []
+            for i, l in enumerate(listeners):
+                results.append({"listener": l["listener"], "data": data})
+                if l["once"]:
+                    to_remove.append(i)
+            for i in reversed(to_remove):
+                listeners.pop(i)
+            return {"emitted": True, "event": event, "listeners_count": len(listeners), "results": results}
+        elif action == "off":
+            if event in _events and listener:
+                _events[event] = [l for l in _events[event] if l["listener"] != listener]
+            return {"unsubscribed": True, "event": event}
+        elif action == "listeners":
+            return {"event": event, "listeners": _events.get(event, [])}
+        return {"error": "Unknown action"}
+signature:
+  inputs:
+    action: {type: "string", required: true, description: "操作(on/emit/off/listeners)", example: "emit"}
+    event: {type: "string", required: true, description: "事件名", example: "user.login"}
+    listener: {type: "string", required: false, description: "监听器标识", example: "handler1"}
+    data: {type: "any", required: false, description: "事件数据", example: {"user_id": 123}}
+    once: {type: "boolean", required: false, default: false, description: "只监听一次", example: false}
+  outputs:
+    emitted: {type: "boolean", required: false}
+    subscribed: {type: "boolean", required: false}
+    listeners_count: {type: "integer", required: false}
+    results: {type: "array", required: false}
+semantics:
+  deterministic: false
+  side_effects: ["memory"]
+  purity: "impure"
+tests:
+  cases:
+    - {name: "订阅事件", input: {action: "on", event: "test", listener: "h1"}, expect: {subscribed: true}}
+    - {name: "发布事件", input: {action: "emit", event: "test", data: "hello"}, expect: {emitted: true}}
+    - {name: "一次性监听", input: {action: "on", event: "once_test", listener: "h2", once: true}, expect: {subscribed: true}}
+tags: ["utils", "event", "pub-sub"]

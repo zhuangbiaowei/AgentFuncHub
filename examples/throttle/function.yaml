@@ -1,0 +1,47 @@
+spec_version: "0.1"
+id: "utils.throttle"
+version: "1.0.0"
+name: "Throttle"
+description: "节流器，限制函数执行频率，确保函数在指定时间内最多执行一次"
+language:
+  name: "python"
+  runtime: "python>=3.8"
+entrypoint:
+  kind: "inline"
+  symbol: "throttle"
+  code: |
+    import time
+    _throttle_last_exec = {}
+    def throttle(key: str, interval: float = 1.0, action: str = "check"):
+        global _throttle_last_exec
+        now = time.time()
+        if action == "reset":
+            if key in _throttle_last_exec:
+                del _throttle_last_exec[key]
+            return {"allowed": True, "reset": True}
+        last = _throttle_last_exec.get(key, 0)
+        if now - last >= interval:
+            _throttle_last_exec[key] = now
+            return {"allowed": True, "wait_time": 0, "next_allowed": now}
+        wait = interval - (now - last)
+        return {"allowed": False, "wait_time": round(wait, 3), "next_allowed": last + interval}
+signature:
+  inputs:
+    key: {type: "string", required: true, description: "节流键", example: "api_call"}
+    interval: {type: "number", required: false, default: 1.0, description: "间隔(秒)", example: 2.0}
+    action: {type: "string", required: false, default: "check", description: "操作", example: "check"}
+  outputs:
+    allowed: {type: "boolean", description: "是否允许执行"}
+    wait_time: {type: "number", required: false, description: "等待时间"}
+    next_allowed: {type: "number", required: false, description: "下次允许时间"}
+    reset: {type: "boolean", required: false, description: "是否重置"}
+semantics:
+  deterministic: false
+  side_effects: ["memory"]
+  purity: "impure"
+tests:
+  cases:
+    - {name: "首次允许", input: {key: "test1", interval: 1.0}, expect: {allowed: true, wait_time: 0}}
+    - {name: "快速拒绝", input: {key: "test1", interval: 1.0}, expect: {allowed: false}}
+    - {name: "重置", input: {key: "test2", action: "reset"}, expect: {allowed: true, reset: true}}
+tags: ["utils", "throttle", "rate-limit"]

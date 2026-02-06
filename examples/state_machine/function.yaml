@@ -1,0 +1,59 @@
+spec_version: "0.1"
+id: "utils.state.machine"
+version: "1.0.0"
+name: "State Machine"
+description: "有限状态机，支持状态定义、转换和动作"
+language:
+  name: "python"
+  runtime: "python>=3.8"
+entrypoint:
+  kind: "inline"
+  symbol: "state_machine"
+  code: |
+    _state_machines = {}
+    def state_machine(instance_id: str, action: str = "get", transition: str = None, context: dict = None):
+        global _state_machines
+        if instance_id not in _state_machines:
+            _state_machines[instance_id] = {"state": "idle", "history": [], "context": {}}
+        sm = _state_machines[instance_id]
+        if action == "get":
+            return {"state": sm["state"], "history": sm["history"], "context": sm["context"]}
+        elif action == "set":
+            old_state = sm["state"]
+            sm["state"] = transition
+            sm["history"].append({"from": old_state, "to": transition, "time": __import__('time').time()})
+            if context:
+                sm["context"].update(context)
+            return {"success": True, "previous": old_state, "current": transition}
+        elif action == "can":
+            # 简单的状态转换检查
+            valid_transitions = {"idle": ["running"], "running": ["paused", "completed"], "paused": ["running"]}
+            current = sm["state"]
+            allowed = valid_transitions.get(current, [])
+            return {"can_transition": transition in allowed, "from": current, "to": transition, "allowed": allowed}
+        elif action == "reset":
+            _state_machines[instance_id] = {"state": "idle", "history": [], "context": {}}
+            return {"reset": True}
+        return {"error": "Unknown action"}
+signature:
+  inputs:
+    instance_id: {type: "string", required: true, description: "状态机实例ID", example: "order_123"}
+    action: {type: "string", required: false, default: "get", description: "操作", example: "set"}
+    transition: {type: "string", required: false, description: "目标状态", example: "running"}
+    context: {type: "object", required: false, description: "上下文数据", example: {"user": "admin"}}
+  outputs:
+    state: {type: "string", required: false}
+    history: {type: "array", required: false}
+    success: {type: "boolean", required: false}
+    previous: {type: "string", required: false}
+    current: {type: "string", required: false}
+semantics:
+  deterministic: false
+  side_effects: ["memory"]
+  purity: "impure"
+tests:
+  cases:
+    - {name: "获取状态", input: {instance_id: "test", action: "get"}, expect: {state: "idle"}}
+    - {name: "状态转换", input: {instance_id: "test", action: "set", transition: "running"}, expect: {success: true, current: "running"}}
+    - {name: "检查转换", input: {instance_id: "test", action: "can", transition: "paused"}, expect: {can_transition: true}}
+tags: ["utils", "state-machine", "workflow"]

@@ -1,0 +1,58 @@
+spec_version: "0.1"
+id: "utils.pipeline.builder"
+version: "1.0.0"
+name: "Pipeline Builder"
+description: "管道构建器，链式处理数据，支持错误处理和条件分支"
+language:
+  name: "python"
+  runtime: "python>=3.8"
+entrypoint:
+  kind: "inline"
+  symbol: "pipeline"
+  code: |
+    def pipeline(data, steps: list, error_handler: str = "stop"):
+        results = []
+        context = {"input": data, "current": data, "step": 0, "errors": []}
+        for i, step in enumerate(steps):
+            context["step"] = i
+            try:
+                op = step.get("op")
+                if op == "map":
+                    func = eval(step["func"])
+                    context["current"] = func(context["current"])
+                elif op == "filter":
+                    func = eval(step["func"])
+                    if isinstance(context["current"], list):
+                        context["current"] = [x for x in context["current"] if func(x)]
+                elif op == "transform":
+                    func = eval(step["func"])
+                    context["current"] = func(context["current"])
+                elif op == "condition":
+                    if not eval(step["if"]):
+                        break
+                results.append({"step": i, "result": context["current"], "success": True})
+            except Exception as e:
+                context["errors"].append({"step": i, "error": str(e)})
+                if error_handler == "stop":
+                    return {"success": False, "error": str(e), "step": i, "partial": results}
+                results.append({"step": i, "error": str(e), "success": False})
+        return {"success": True, "result": context["current"], "steps": len(steps), "details": results}
+signature:
+  inputs:
+    data: {type: "any", required: true, description: "输入数据", example: [1, 2, 3, 4, 5]}
+    steps: {type: "array", required: true, description: "处理步骤", example: [{"op": "filter", "func": "lambda x: x > 2"}, {"op": "map", "func": "lambda x: x * 2"}]}
+    error_handler: {type: "string", required: false, default: "stop", description: "错误处理(stop/continue)", example: "stop"}
+  outputs:
+    success: {type: "boolean"}
+    result: {type: "any", required: false}
+    steps: {type: "integer", required: false}
+    error: {type: "string", required: false}
+semantics:
+  deterministic: true
+  side_effects: ["none"]
+  purity: "pure"
+tests:
+  cases:
+    - {name: "过滤和映射", input: {data: [1, 2, 3, 4], steps: [{"op": "filter", "func": "lambda x: x > 2"}, {"op": "map", "func": "lambda x: x * 2"}]}, expect: {success: true, result: [6, 8]}}
+    - {name: "条件分支", input: {data: 10, steps: [{"op": "condition", "if": "data > 5"}, {"op": "transform", "func": "lambda x: x * 2"}]}, expect: {success: true}}
+tags: ["utils", "pipeline", "data-processing"]

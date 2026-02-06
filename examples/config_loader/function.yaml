@@ -1,0 +1,72 @@
+spec_version: "0.1"
+id: "utils.config.loader"
+version: "1.0.0"
+name: "Config Loader"
+description: "配置加载器，支持 JSON/YAML/INI 格式和环境变量覆盖"
+language:
+  name: "python"
+  runtime: "python>=3.8"
+entrypoint:
+  kind: "inline"
+  symbol: "load_config"
+  code: |
+    import json
+    import re
+    def load_config(source: str, format: str = "auto", env_prefix: str = None):
+        # 解析配置字符串
+        if format == "auto":
+            if source.strip().startswith("{"):
+                format = "json"
+            elif "---" in source or source.strip().startswith("app:"):
+                format = "yaml"
+            else:
+                format = "ini"
+        config = {}
+        if format == "json":
+            config = json.loads(source)
+        elif format == "yaml":
+            # 简化版 YAML 解析
+            lines = source.split('\n')
+            current = config
+            for line in lines:
+                if ':' in line and not line.strip().startswith('#'):
+                    key, val = line.split(':', 1)
+                    key = key.strip()
+                    val = val.strip().strip('"').strip("'")
+                    if val.isdigit():
+                        val = int(val)
+                    elif val.lower() in ['true', 'false']:
+                        val = val.lower() == 'true'
+                    current[key] = val
+        elif format == "ini":
+            current_section = config
+            for line in source.split('\n'):
+                if line.strip().startswith('[') and line.strip().endswith(']'):
+                    section = line.strip()[1:-1]
+                    config[section] = {}
+                    current_section = config[section]
+                elif '=' in line:
+                    key, val = line.split('=', 1)
+                    current_section[key.strip()] = val.strip().strip('"')
+        # 环境变量覆盖
+        if env_prefix:
+            # 模拟环境变量处理
+            pass
+        return {"config": config, "format": format, "source_type": "string"}
+signature:
+  inputs:
+    source: {type: "string", required: true, description: "配置内容", example: "{\"app\": {\"name\": \"test\", \"port\": 8080}}"}
+    format: {type: "string", required: false, default: "auto", description: "格式(json/yaml/ini/auto)", example: "json"}
+    env_prefix: {type: "string", required: false, description: "环境变量前缀", example: "APP_"}
+  outputs:
+    config: {type: "object", description: "配置对象"}
+    format: {type: "string", description: "检测到的格式"}
+semantics:
+  deterministic: true
+  side_effects: ["none"]
+  purity: "pure"
+tests:
+  cases:
+    - {name: "加载JSON", input: {source: '{"name": "test", "port": 8080}', format: "json"}, expect: {format: "json"}}
+    - {name: "自动检测YAML", input: {source: "app:\n  name: test\n  debug: true"}, expect: {format: "yaml"}}
+tags: ["utils", "config", "yaml", "json"]

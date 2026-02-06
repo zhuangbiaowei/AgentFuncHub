@@ -1,0 +1,54 @@
+spec_version: "0.1"
+id: "utils.debounce"
+version: "1.0.0"
+name: "Debounce"
+description: "防抖器，延迟执行并合并多次调用，常用于搜索输入等场景"
+language:
+  name: "python"
+  runtime: "python>=3.8"
+entrypoint:
+  kind: "inline"
+  symbol: "debounce"
+  code: |
+    import time
+    _debounce_timers = {}
+    def debounce(key: str, wait: float = 0.3, immediate: bool = False, action: str = "trigger"):
+        global _debounce_timers
+        now = time.time()
+        if action == "flush":
+            if key in _debounce_timers:
+                del _debounce_timers[key]
+            return {"flushed": True}
+        if action == "cancel":
+            if key in _debounce_timers:
+                del _debounce_timers[key]
+            return {"cancelled": True}
+        # 记录触发时间
+        last_trigger = _debounce_timers.get(key, 0)
+        _debounce_timers[key] = now
+        if immediate and now - last_trigger > wait:
+            return {"execute": True, "immediate": True, "wait": 0}
+        return {"execute": False, "wait": wait, "scheduled": True}
+signature:
+  inputs:
+    key: {type: "string", required: true, description: "防抖键", example: "search_input"}
+    wait: {type: "number", required: false, default: 0.3, description: "等待时间(秒)", example: 0.5}
+    immediate: {type: "boolean", required: false, default: false, description: "立即执行首次", example: false}
+    action: {type: "string", required: false, default: "trigger", description: "操作", example: "trigger"}
+  outputs:
+    execute: {type: "boolean", description: "是否立即执行"}
+    wait: {type: "number", required: false, description: "等待时间"}
+    scheduled: {type: "boolean", required: false, description: "是否已调度"}
+    immediate: {type: "boolean", required: false, description: "是否立即模式"}
+    flushed: {type: "boolean", required: false, description: "是否已刷新"}
+    cancelled: {type: "boolean", required: false, description: "是否已取消"}
+semantics:
+  deterministic: false
+  side_effects: ["memory"]
+  purity: "impure"
+tests:
+  cases:
+    - {name: "首次触发", input: {key: "test", wait: 0.3}, expect: {execute: false, scheduled: true}}
+    - {name: "立即模式", input: {key: "test2", wait: 0.3, immediate: true}, expect: {execute: true, immediate: true}}
+    - {name: "取消", input: {key: "test", action: "cancel"}, expect: {cancelled: true}}
+tags: ["utils", "debounce", "performance"]

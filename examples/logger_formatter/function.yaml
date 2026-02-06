@@ -1,0 +1,56 @@
+spec_version: "0.1"
+id: "utils.logger.formatter"
+version: "1.0.0"
+name: "Logger Formatter"
+description: "日志格式化器，支持多种格式和结构化输出"
+language:
+  name: "python"
+  runtime: "python>=3.8"
+entrypoint:
+  kind: "inline"
+  symbol: "format_log"
+  code: |
+    import json
+    from datetime import datetime
+    def format_log(message: str, level: str = "INFO", format: str = "text", context: dict = None, timestamp: str = None):
+        if timestamp is None:
+            timestamp = datetime.now().isoformat()
+        if context is None:
+            context = {}
+        log_entry = {
+            "timestamp": timestamp,
+            "level": level.upper(),
+            "message": message,
+            **context
+        }
+        if format == "json":
+            return {"formatted": json.dumps(log_entry), "format": "json", "entry": log_entry}
+        elif format == "structured":
+            parts = [f"{k}={v}" for k, v in log_entry.items()]
+            return {"formatted": " ".join(parts), "format": "structured", "entry": log_entry}
+        else:  # text
+            text = f"[{timestamp}] {level.upper()}: {message}"
+            if context:
+                text += f" | {context}"
+            return {"formatted": text, "format": "text", "entry": log_entry}
+signature:
+  inputs:
+    message: {type: "string", required: true, description: "日志消息", example: "User logged in"}
+    level: {type: "string", required: false, default: "INFO", description: "日志级别", example: "ERROR"}
+    format: {type: "string", required: false, default: "text", description: "格式(text/json/structured)", example: "json"}
+    context: {type: "object", required: false, description: "上下文", example: {"user_id": 123}}
+    timestamp: {type: "string", required: false, description: "时间戳", example: "2024-01-01T00:00:00"}
+  outputs:
+    formatted: {type: "string", description: "格式化后的日志"}
+    format: {type: "string", description: "格式类型"}
+    entry: {type: "object", description: "日志条目对象"}
+semantics:
+  deterministic: true
+  side_effects: ["none"]
+  purity: "pure"
+tests:
+  cases:
+    - {name: "文本格式", input: {message: "Hello", level: "INFO"}, expect: {format: "text"}}
+    - {name: "JSON格式", input: {message: "Error", level: "ERROR", format: "json"}, expect: {format: "json"}}
+    - {name: "结构化格式", input: {message: "Event", format: "structured", context: {"id": 1}}, expect: {format: "structured"}}
+tags: ["utils", "logging", "formatting"]

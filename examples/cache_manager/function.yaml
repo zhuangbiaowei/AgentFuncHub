@@ -1,0 +1,338 @@
+spec_version: "0.1"
+
+id: "utils.cache.manager"
+version: "1.0.0"
+name: "Cache Manager"
+description: "通用缓存管理器，支持 TTL、LRU 淘汰策略，可切换内存或文件存储模式"
+
+language:
+  name: "python"
+  runtime: "python>=3.8"
+
+entrypoint:
+  kind: "inline"
+  symbol: "cache_manager"
+  code: |
+    import time
+    import json
+    import os
+    from typing import Dict, Any, Optional
+    
+    # 全局缓存存储
+    _memory_cache = {}
+    _cache_metadata = {}
+    
+    def cache_manager(
+        operation: str = "get",
+        key: str = "",
+        value: Any = None,
+        ttl: Optional[int] = None,
+        max_size: int = 1000,
+        storage: str = "memory",
+        cache_dir: str = "/tmp/cache"
+    ) -> Dict[str, Any]:
+        """
+        缓存管理器
+        
+        Args:
+            operation: 操作类型 ("get", "set", "delete", "clear", "exists", "info")
+            key: 缓存键
+            value: 要存储的值 (set 操作)
+            ttl: 生存时间(秒)
+            max_size: 最大缓存条目数
+            storage: 存储模式 ("memory" 或 "file")
+            cache_dir: 文件缓存目录
+            
+        Returns:
+            操作结果字典
+        """
+        global _memory_cache, _cache_metadata
+        
+        current_time = time.time()
+        
+        # 文件存储模式
+        if storage == "file":
+            return _file_cache_operation(
+                operation, key, value, ttl, max_size, cache_dir, current_time
+            )
+        
+        # 内存存储模式
+        # 清理过期条目
+        _cleanup_expired(current_time)
+        
+        # LRU: 如果超出大小限制，删除最旧的条目
+        if operation == "set" and len(_memory_cache) >= max_size and key not in _memory_cache:
+            _evict_oldest()
+        
+        if operation == "get":
+            if key in _memory_cache:
+                meta = _cache_metadata.get(key, {})
+                # 检查是否过期
+                if meta.get("expires") and current_time > meta["expires"]:
+                    del _memory_cache[key]
+                    del _cache_metadata[key]
+                    return {"found": False, "value": None, "expired": True}
+                
+                # 更新访问时间
+                meta["last_access"] = current_time
+                meta["access_count"] = meta.get("access_count", 0) + 1
+                return {"found": True, "value": _memory_cache[key], "metadata": meta}
+            return {"found": False, "value": None}
+        
+        elif operation == "set":
+            _memory_cache[key] = value
+            _cache_metadata[key] = {
+                "created": current_time,
+                "last_access": current_time,
+                "access_count": 0,
+                "expires": current_time + ttl if ttl else None,
+                "size": len(str(value))
+            }
+            return {"success": True, "key": key}
+        
+        elif operation == "delete":
+            if key in _memory_cache:
+                del _memory_cache[key]
+                del _cache_metadata[key]
+                return {"success": True, "deleted": True}
+            return {"success": False, "deleted": False, "error": "Key not found"}
+        
+        elif operation == "clear":
+            count = len(_memory_cache)
+            _memory_cache.clear()
+            _cache_metadata.clear()
+            return {"success": True, "cleared_count": count}
+        
+        elif operation == "exists":
+            exists = key in _memory_cache
+            expired = False
+            if exists:
+                meta = _cache_metadata.get(key, {})
+                if meta.get("expires") and current_time > meta["expires"]:
+                    expired = True
+                    exists = False
+            return {"exists": exists, "expired": expired}
+        
+        elif operation == "info":
+            total_size = sum(m.get("size", 0) for m in _cache_metadata.values())
+            return {
+                "count": len(_memory_cache),
+                "max_size": max_size,
+                "storage": storage,
+                "total_size_bytes": total_size,
+                "keys": list(_memory_cache.keys()) if key == "" else None
+            }
+        
+        return {"error": f"Unknown operation: {operation}"}
+    
+    def _cleanup_expired(current_time):
+        """清理过期条目"""
+        global _memory_cache, _cache_metadata
+        expired_keys = [
+            k for k, m in _cache_metadata.items()
+            if m.get("expires") and current_time > m["expires"]
+        ]
+        for k in expired_keys:
+            del _memory_cache[k]
+            del _cache_metadata[k]
+    
+    def _evict_oldest():
+        """LRU: 淘汰最久未访问的条目"""
+        global _memory_cache, _cache_metadata
+        if not _cache_metadata:
+            return
+        oldest_key = min(_cache_metadata.keys(), 
+                        key=lambda k: _cache_metadata[k].get("last_access", 0))
+        del _memory_cache[oldest_key]
+        del _cache_metadata[oldest_key]
+    
+    def _file_cache_operation(operation, key, value, ttl, max_size, cache_dir, current_time):
+        """文件缓存操作"""
+        os.makedirs(cache_dir, exist_ok=True)
+        cache_file = os.path.join(cache_dir, f"{key}.json")
+        
+        if operation == "get":
+            if os.path.exists(cache_file):
+                try:
+                    with open(cache_file, 'r') as f:
+                        data = json.load(f)
+                    if data.get("expires") and current_time > data["expires"]:
+                        os.remove(cache_file)
+                        return {"found": False, "value": None, "expired": True}
+                    return {"found": True, "value": data["value"], "metadata": data.get("metadata", {})}
+                except:
+                    return {"found": False, "value": None, "error": "Corrupted cache file"}
+            return {"found": False, "value": None}
+        
+        elif operation == "set":
+            data = {
+                "value": value,
+                "expires": current_time + ttl if ttl else None,
+                "metadata": {
+                    "created": current_time,
+                    "size": len(str(value))
+                }
+            }
+            with open(cache_file, 'w') as f:
+                json.dump(data, f)
+            return {"success": True, "key": key, "storage": "file"}
+        
+        elif operation == "delete":
+            if os.path.exists(cache_file):
+                os.remove(cache_file)
+                return {"success": True, "deleted": True}
+            return {"success": False, "deleted": False, "error": "Key not found"}
+        
+        elif operation == "clear":
+            count = 0
+            for f in os.listdir(cache_dir):
+                if f.endswith('.json'):
+                    os.remove(os.path.join(cache_dir, f))
+                    count += 1
+            return {"success": True, "cleared_count": count}
+        
+        elif operation == "exists":
+            exists = os.path.exists(cache_file)
+            return {"exists": exists}
+        
+        elif operation == "info":
+            files = [f for f in os.listdir(cache_dir) if f.endswith('.json')]
+            return {
+                "count": len(files),
+                "max_size": max_size,
+                "storage": "file",
+                "cache_dir": cache_dir
+            }
+        
+        return {"error": f"Unknown operation: {operation}"}
+
+signature:
+  inputs:
+    operation:
+      type: "string"
+      required: true
+      description: "操作类型"
+      example: "get"
+    key:
+      type: "string"
+      required: true
+      description: "缓存键"
+      example: "user:123:profile"
+    value:
+      type: "any"
+      required: false
+      description: "要存储的值"
+      default: null
+      example: {"name": "John", "age": 30}
+    ttl:
+      type: "integer"
+      required: false
+      description: "生存时间(秒)"
+      default: null
+      example: 3600
+    max_size:
+      type: "integer"
+      required: false
+      description: "最大缓存条目数"
+      default: 1000
+      example: 1000
+    storage:
+      type: "string"
+      required: false
+      description: "存储模式"
+      default: "memory"
+      example: "memory"
+    cache_dir:
+      type: "string"
+      required: false
+      description: "文件缓存目录"
+      default: "/tmp/cache"
+      example: "/tmp/cache"
+  outputs:
+    success:
+      type: "boolean"
+      required: false
+      description: "操作是否成功"
+    found:
+      type: "boolean"
+      required: false
+      description: "是否找到键"
+    value:
+      type: "any"
+      required: false
+      description: "缓存值"
+    metadata:
+      type: "object"
+      required: false
+      description: "缓存元数据"
+    expired:
+      type: "boolean"
+      required: false
+      description: "是否已过期"
+    count:
+      type: "integer"
+      required: false
+      description: "缓存条目数"
+    error:
+      type: "string"
+      required: false
+      description: "错误信息"
+
+semantics:
+  deterministic: false
+  side_effects: ["memory", "filesystem"]
+  purity: "impure"
+  thread_safe: false
+  security:
+    sandbox_required: true
+    network_access: false
+    data_sensitivity: "medium"
+
+tests:
+  framework: "builtin"
+  cases:
+    - name: "设置并获取缓存"
+      input:
+        operation: "set"
+        key: "test_key"
+        value: "test_value"
+        ttl: 60
+      expect:
+        success: true
+    - name: "获取存在的缓存"
+      input:
+        operation: "get"
+        key: "test_key"
+      expect:
+        found: true
+        value: "test_value"
+    - name: "检查缓存是否存在"
+      input:
+        operation: "exists"
+        key: "test_key"
+      expect:
+        exists: true
+    - name: "获取缓存信息"
+      input:
+        operation: "info"
+        key: ""
+      expect:
+        storage: "memory"
+    - name: "删除缓存"
+      input:
+        operation: "delete"
+        key: "test_key"
+      expect:
+        success: true
+        deleted: true
+
+tags: ["utils", "cache", "storage", "performance"]
+
+quality:
+  maturity: "stable"
+  coverage: 0.9
+
+metadata:
+  author: "AgentFuncHub"
+  license: "MIT"
+  created_at: "2026-02-06"

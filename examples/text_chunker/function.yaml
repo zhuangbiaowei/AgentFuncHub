@@ -1,9 +1,14 @@
 spec_version: "0.1"
 
-id: "ai.text.chunker"
+id: "ai.text_chunker"
 version: "1.0.0"
 name: "Text Chunker"
-description: "文本分块器，支持多种分块策略（固定大小、按段落、按句子、滑动窗口），用于RAG和LLM上下文管理"
+description: "将长文本分割成多个小块，支持按字符数、段落、句子等多种分块策略，适用于 RAG 和 Embedding 场景。"
+
+license: "MIT"
+authors:
+  - name: "AIUtilsAgent_1.0"
+    contact: "agent@example.com"
 
 language:
   name: "python"
@@ -14,420 +19,279 @@ entrypoint:
   symbol: "chunk_text"
   code: |
     import re
-    from typing import Dict, Any, List, Optional
+    from typing import List, Dict, Union
     
     def chunk_text(
         text: str,
-        strategy: str = "fixed",
-        chunk_size: int = 1000,
-        overlap: int = 200,
-        separators: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
+        strategy: str = "char",
+        chunk_size: int = 500,
+        overlap: int = 50,
+        separator: str = None
+    ) -> Dict[str, Union[List[str], int, str]]:
         """
-        将文本分割成块
+        将文本分割成多个块。
         
         Args:
             text: 输入文本
-            strategy: 分块策略 (fixed, paragraph, sentence, sliding_window)
-            chunk_size: 目标块大小（字符数）
-            overlap: 块之间重叠的字符数
-            separators: 自定义分隔符列表（用于recursive策略）
-            
+            strategy: 分块策略 (char/paragraph/sentence/word/token)
+            chunk_size: 每个块的大小
+            overlap: 块之间的重叠大小
+            separator: 自定义分隔符（仅在 strategy=separator 时使用）
+        
         Returns:
-            包含文本块列表和元信息的字典
+            包含 chunks, chunk_count, strategy 的字典
         """
-        if not text or not text.strip():
+        if not isinstance(text, str):
+            raise ValueError("text must be a string")
+        
+        if not text.strip():
             return {
                 "chunks": [],
                 "chunk_count": 0,
-                "total_chars": 0,
-                "strategy": strategy,
-                "avg_chunk_size": 0
+                "total_length": 0,
+                "strategy": strategy
             }
         
-        total_chars = len(text)
         chunks = []
         
-        if strategy == "fixed":
-            # 固定大小分块
+        if strategy == "char":
+            # 按字符数分块
             step = max(1, chunk_size - overlap)
             for i in range(0, len(text), step):
                 chunk = text[i:i + chunk_size]
                 if chunk.strip():
-                    chunks.append({
-                        "content": chunk,
-                        "index": len(chunks),
-                        "start": i,
-                        "end": min(i + chunk_size, len(text)),
-                        "size": len(chunk)
-                    })
-                    
+                    chunks.append(chunk)
+        
         elif strategy == "paragraph":
-            # 按段落分块（支持多种换行格式）
-            # 匹配一个或多个空行作为段落分隔
-            paragraphs = re.split(r'\n\s*\n', text)
+            # 按段落分块
+            # 支持多种段落分隔符
+            paragraphs = re.split(r'\n\s*\n|\r\n\s*\r\n', text)
+            paragraphs = [p.strip() for p in paragraphs if p.strip()]
+            
             current_chunk = ""
-            current_start = 0
-            
             for para in paragraphs:
-                para = para.strip()
-                if not para:
-                    continue
-                    
-                # 如果当前段落本身就超过chunk_size，需要分割
-                if len(para) > chunk_size:
-                    if current_chunk:
-                        chunks.append({
-                            "content": current_chunk.strip(),
-                            "index": len(chunks),
-                            "start": current_start,
-                            "end": current_start + len(current_chunk),
-                            "size": len(current_chunk)
-                        })
-                        current_chunk = ""
-                    
-                    # 分割长段落
-                    for i in range(0, len(para), chunk_size - overlap):
-                        sub_chunk = para[i:i + chunk_size]
-                        if sub_chunk.strip():
-                            chunks.append({
-                                "content": sub_chunk,
-                                "index": len(chunks),
-                                "start": text.find(sub_chunk, current_start),
-                                "end": text.find(sub_chunk, current_start) + len(sub_chunk),
-                                "size": len(sub_chunk)
-                            })
-                            current_start = chunks[-1]["end"]
-                
-                # 检查添加此段落后是否超过chunk_size
-                elif len(current_chunk) + len(para) + 2 <= chunk_size:
-                    if current_chunk:
-                        current_chunk += "\n\n" + para
-                    else:
-                        current_chunk = para
-                        current_start = text.find(para)
+                if len(current_chunk) + len(para) + 1 <= chunk_size:
+                    current_chunk = (current_chunk + "\n\n" + para).strip()
                 else:
-                    # 保存当前块，开始新块
                     if current_chunk:
-                        chunks.append({
-                            "content": current_chunk.strip(),
-                            "index": len(chunks),
-                            "start": current_start,
-                            "end": current_start + len(current_chunk),
-                            "size": len(current_chunk)
-                        })
+                        chunks.append(current_chunk)
                     current_chunk = para
-                    current_start = text.find(para, chunks[-1]["end"] if chunks else 0)
-            
-            # 添加最后一个块
             if current_chunk:
-                chunks.append({
-                    "content": current_chunk.strip(),
-                    "index": len(chunks),
-                    "start": current_start,
-                    "end": current_start + len(current_chunk),
-                    "size": len(current_chunk)
-                })
-                
+                chunks.append(current_chunk)
+        
         elif strategy == "sentence":
             # 按句子分块
-            # 匹配句子结束符（.!?）后面跟空格或大写/换行
-            sentence_pattern = r'(?<=[.!?。！？])\s+(?=[A-Z"\u4e00-\u9fa5])|(?<=[.!?。！？])\s*\n'
+            # 支持中英文句子结束符
+            sentence_pattern = r'(?<=[。．.！!？?])\s*'
             sentences = re.split(sentence_pattern, text)
             sentences = [s.strip() for s in sentences if s.strip()]
             
             current_chunk = ""
-            current_start = 0
-            
             for sent in sentences:
                 if len(current_chunk) + len(sent) + 1 <= chunk_size:
-                    if current_chunk:
-                        current_chunk += " " + sent
-                    else:
-                        current_chunk = sent
-                        current_start = text.find(sent)
+                    current_chunk = (current_chunk + " " + sent).strip()
                 else:
                     if current_chunk:
-                        chunks.append({
-                            "content": current_chunk.strip(),
-                            "index": len(chunks),
-                            "start": current_start,
-                            "end": current_start + len(current_chunk),
-                            "size": len(current_chunk)
-                        })
+                        chunks.append(current_chunk)
                     current_chunk = sent
-                    current_start = text.find(sent, chunks[-1]["end"] if chunks else 0)
-            
             if current_chunk:
-                chunks.append({
-                    "content": current_chunk.strip(),
-                    "index": len(chunks),
-                    "start": current_start,
-                    "end": current_start + len(current_chunk),
-                    "size": len(current_chunk)
-                })
-                
-        elif strategy == "sliding_window":
-            # 滑动窗口分块
-            step = max(1, chunk_size - overlap)
-            for i in range(0, len(text), step):
-                end_pos = min(i + chunk_size, len(text))
-                chunk = text[i:end_pos]
-                if chunk.strip():
-                    chunks.append({
-                        "content": chunk,
-                        "index": len(chunks),
-                        "start": i,
-                        "end": end_pos,
-                        "size": len(chunk),
-                        "overlap_with_prev": overlap if i > 0 else 0
-                    })
-                if end_pos >= len(text):
-                    break
-                    
-        elif strategy == "recursive":
-            # 递归字符分块
-            default_seps = separators or ["\n\n", "\n", ". ", "! ", "? ", " ", ""]
-            chunks = _recursive_chunk(text, chunk_size, overlap, default_seps, 0)
+                chunks.append(current_chunk)
         
-        # 计算统计信息
-        chunk_sizes = [c["size"] for c in chunks]
-        avg_size = sum(chunk_sizes) / len(chunk_sizes) if chunk_sizes else 0
+        elif strategy == "word":
+            # 按单词数分块
+            words = text.split()
+            step = max(1, chunk_size - overlap)
+            for i in range(0, len(words), step):
+                chunk_words = words[i:i + chunk_size]
+                chunk = " ".join(chunk_words)
+                if chunk.strip():
+                    chunks.append(chunk)
+        
+        elif strategy == "separator":
+            # 按自定义分隔符分块
+            sep = separator if separator else "\n"
+            parts = text.split(sep)
+            parts = [p.strip() for p in parts if p.strip()]
+            
+            current_chunk = ""
+            for part in parts:
+                if len(current_chunk) + len(part) + len(sep) <= chunk_size:
+                    current_chunk = (current_chunk + sep + part).strip()
+                else:
+                    if current_chunk:
+                        chunks.append(current_chunk)
+                    current_chunk = part
+            if current_chunk:
+                chunks.append(current_chunk)
+        
+        else:
+            raise ValueError(f"Unknown strategy: {strategy}")
         
         return {
             "chunks": chunks,
             "chunk_count": len(chunks),
-            "total_chars": total_chars,
-            "strategy": strategy,
-            "avg_chunk_size": round(avg_size, 2),
-            "min_chunk_size": min(chunk_sizes) if chunk_sizes else 0,
-            "max_chunk_size": max(chunk_sizes) if chunk_sizes else 0
+            "total_length": len(text),
+            "strategy": strategy
         }
-    
-    def _recursive_chunk(text: str, chunk_size: int, overlap: int, 
-                         separators: List[str], level: int) -> List[Dict]:
-        """递归分块实现"""
-        chunks = []
-        
-        if not text.strip():
-            return chunks
-            
-        # 如果文本小于chunk_size，直接返回
-        if len(text) <= chunk_size:
-            return [{
-                "content": text,
-                "index": 0,
-                "start": 0,
-                "end": len(text),
-                "size": len(text)
-            }]
-        
-        # 尝试用当前分隔符分割
-        if level < len(separators):
-            sep = separators[level]
-            if sep == "":
-                # 最后级别：固定大小分割
-                step = max(1, chunk_size - overlap)
-                for i in range(0, len(text), step):
-                    chunk = text[i:i + chunk_size]
-                    if chunk.strip():
-                        chunks.append({
-                            "content": chunk,
-                            "index": len(chunks),
-                            "start": i,
-                            "end": min(i + chunk_size, len(text)),
-                            "size": len(chunk)
-                        })
-            else:
-                parts = text.split(sep)
-                current_chunk = ""
-                current_start = 0
-                
-                for i, part in enumerate(parts):
-                    # 恢复分隔符（除了最后一个）
-                    part_with_sep = part + sep if i < len(parts) - 1 else part
-                    
-                    if len(current_chunk) + len(part_with_sep) <= chunk_size:
-                        current_chunk += part_with_sep
-                    else:
-                        if current_chunk:
-                            # 递归处理大块
-                            if len(current_chunk) > chunk_size:
-                                sub_chunks = _recursive_chunk(
-                                    current_chunk, chunk_size, overlap, 
-                                    separators, level + 1
-                                )
-                                for sc in sub_chunks:
-                                    sc["index"] = len(chunks)
-                                chunks.extend(sub_chunks)
-                            else:
-                                chunks.append({
-                                    "content": current_chunk,
-                                    "index": len(chunks),
-                                    "start": current_start,
-                                    "end": current_start + len(current_chunk),
-                                    "size": len(current_chunk)
-                                })
-                        current_chunk = part_with_sep
-                        current_start = text.find(part_with_sep, 
-                                                  chunks[-1]["end"] if chunks else 0)
-                
-                if current_chunk:
-                    if len(current_chunk) > chunk_size:
-                        sub_chunks = _recursive_chunk(
-                            current_chunk, chunk_size, overlap,
-                            separators, level + 1
-                        )
-                        for sc in sub_chunks:
-                            sc["index"] = len(chunks)
-                        chunks.extend(sub_chunks)
-                    else:
-                        chunks.append({
-                            "content": current_chunk,
-                            "index": len(chunks),
-                            "start": current_start,
-                            "end": current_start + len(current_chunk),
-                            "size": len(current_chunk)
-                        })
-        
-        return chunks
 
 signature:
   inputs:
     text:
       type: "string"
       required: true
-      description: "要分块的输入文本"
-      example: "This is paragraph one.\n\nThis is paragraph two. It has multiple sentences. Here is another one."
+      description: "需要分块的文本"
+      example: "这是一个很长的文本。需要被分割成多个小块。"
     strategy:
       type: "string"
       required: false
-      description: "分块策略 (fixed, paragraph, sentence, sliding_window, recursive)"
-      default: "fixed"
-      example: "paragraph"
+      default: "char"
+      description: "分块策略 (char/paragraph/sentence/word/separator)"
+      enum: ["char", "paragraph", "sentence", "word", "separator"]
     chunk_size:
       type: "integer"
       required: false
-      description: "目标块大小（字符数）"
-      default: 1000
-      example: 500
+      default: 500
+      description: "每个块的大小（字符数或单词数）"
     overlap:
       type: "integer"
       required: false
-      description: "块之间重叠的字符数"
-      default: 200
-      example: 50
-    separators:
-      type: "array"
+      default: 50
+      description: "块之间的重叠大小（仅 char/word 策略有效）"
+    separator:
+      type: "string"
       required: false
-      description: "自定义分隔符列表（用于recursive策略）"
-      default: ["\n\n", "\n", ". ", " ", ""]
-      example: ["\n\n", "\n", ". " ]
+      description: "自定义分隔符（仅在 strategy=separator 时使用）"
   outputs:
     chunks:
       type: "array"
-      description: "文本块列表，每个块包含content, index, start, end, size"
+      description: "分块后的文本数组"
+      items:
+        type: "string"
     chunk_count:
       type: "integer"
-      description: "块数量"
-    total_chars:
+      description: "块的数量"
+    total_length:
       type: "integer"
-      description: "总字符数"
+      description: "原始文本长度"
     strategy:
       type: "string"
       description: "使用的分块策略"
-    avg_chunk_size:
-      type: "number"
-      description: "平均块大小"
-    min_chunk_size:
-      type: "integer"
-      description: "最小块大小"
-    max_chunk_size:
-      type: "integer"
-      description: "最大块大小"
+  errors:
+    - code: "E_INVALID_TEXT"
+      description: "输入文本不是字符串"
+    - code: "E_UNKNOWN_STRATEGY"
+      description: "未知的分块策略"
 
 semantics:
   deterministic: true
-  side_effects: []
+  side_effects: ["none"]
   purity: "pure"
+  concurrency:
+    thread_safe: true
+    reentrant: true
   security:
     sandbox_required: false
-    network_access: false
     data_sensitivity: "low"
 
-environment:
-  dependencies: []
-  platforms: ["linux", "darwin", "win32"]
-  python_version: ">=3.8"
+examples:
+  - name: "按字符分块"
+    input:
+      text: "这是一个测试文本。需要被分割成小块。"
+      strategy: "char"
+      chunk_size: 10
+      overlap: 2
+    output:
+      chunks: ["这是一个测试文", "文本。需要被", "被分割成小块。"]
+      chunk_count: 3
+      strategy: "char"
+  - name: "按段落分块"
+    input:
+      text: "第一段内容。\n\n第二段内容。\n\n第三段内容。"
+      strategy: "paragraph"
+      chunk_size: 100
+    output:
+      chunk_count: 3
+      strategy: "paragraph"
+  - name: "按句子分块"
+    input:
+      text: "这是第一句。这是第二句！这是第三句？"
+      strategy: "sentence"
+      chunk_size: 50
+    output:
+      chunk_count: 3
+      strategy: "sentence"
 
 tests:
   framework: "builtin"
   cases:
-    - name: "固定大小分块"
+    - name: "按字符分块"
       input:
-        text: "abcdefghij"
-        strategy: "fixed"
-        chunk_size: 4
-        overlap: 0
+        text: "Hello World! This is a test message for chunking."
+        strategy: "char"
+        chunk_size: 20
+        overlap: 5
       expect:
         chunk_count: 3
-        strategy: "fixed"
-        total_chars: 10
+        strategy: "char"
     - name: "按段落分块"
       input:
-        text: "Paragraph one.\n\nParagraph two.\n\nParagraph three."
+        text: "第一段。\n\n第二段。\n\n第三段。"
         strategy: "paragraph"
         chunk_size: 100
       expect:
         chunk_count: 3
         strategy: "paragraph"
-        total_chars: 46
-    - name: "按句子分块"
+    - name: "按句子分块（中英文）"
       input:
-        text: "First sentence. Second sentence. Third sentence."
+        text: "这是第一句。This is second sentence! 这是第三句？"
         strategy: "sentence"
-        chunk_size: 50
-      expect:
-        chunk_count: 1
-        strategy: "sentence"
-        total_chars: 48
-    - name: "滑动窗口分块"
-      input:
-        text: "abcdefghij"
-        strategy: "sliding_window"
-        chunk_size: 5
-        overlap: 2
+        chunk_size: 100
       expect:
         chunk_count: 3
-        strategy: "sliding_window"
-        total_chars: 10
-    - name: "空文本处理"
+        strategy: "sentence"
+    - name: "按单词分块"
+      input:
+        text: "The quick brown fox jumps over the lazy dog"
+        strategy: "word"
+        chunk_size: 3
+        overlap: 1
+      expect:
+        chunk_count: 4
+        strategy: "word"
+    - name: "自定义分隔符"
+      input:
+        text: "item1|item2|item3|item4"
+        strategy: "separator"
+        separator: "|"
+        chunk_size: 100
+      expect:
+        chunk_count: 4
+        strategy: "separator"
+    - name: "空文本"
       input:
         text: ""
-        strategy: "fixed"
+        strategy: "char"
         chunk_size: 100
       expect:
         chunk_count: 0
-        total_chars: 0
-        avg_chunk_size: 0
-    - name: "递归分块"
+        chunks: []
+    - name: "长段落自动分割"
       input:
-        text: "Line one.\nLine two.\n\nParagraph two.\n\nParagraph three with many words here."
-        strategy: "recursive"
-        chunk_size: 50
-        overlap: 0
+        text: "这是一个很长的段落，超过了 chunk_size 的限制，需要被分割。"
+        strategy: "paragraph"
+        chunk_size: 20
       expect:
-        chunk_count: 4
-        strategy: "recursive"
-        total_chars: 67
+        chunk_count: 1
+        strategy: "paragraph"
 
-tags: ["ai", "text", "chunking", "rag", "llm", "nlp"]
+tags: ["ai", "text", "chunk", "split", "rag", "embedding"]
 
 quality:
   maturity: "stable"
-  coverage: 0.9
+  coverage: 0.95
 
-metadata:
-  author: "AgentFuncHub"
-  license: "MIT"
+provenance:
   created_at: "2026-02-06"
+  updated_at: "2026-02-06"
+  source:
+    kind: "manual"
