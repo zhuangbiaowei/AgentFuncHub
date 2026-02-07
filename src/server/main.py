@@ -51,9 +51,9 @@ if USE_DATABASE:
         from database import get_db_session, USE_SQLITE
         from database.repository import FunctionRepository
         db_session = get_db_session
-        print(f"🗄️  Database mode enabled ({'SQLite' if USE_SQLITE else 'PostgreSQL'})")
+        print(f"[DB] Database mode enabled ({'SQLite' if USE_SQLITE else 'PostgreSQL'})")
     except Exception as e:
-        print(f"⚠️  Database not available: {e}")
+        print(f"[WARN] Database not available: {e}")
         USE_DATABASE = False
 
 
@@ -63,7 +63,7 @@ def load_function_yaml(yaml_path: Path) -> Optional[Dict]:
         with open(yaml_path, 'r', encoding='utf-8') as f:
             return yaml.safe_load(f)
     except Exception as e:
-        print(f"❌ Failed to load {yaml_path}: {e}")
+        print(f"[ERROR] Failed to load {yaml_path}: {e}")
         return None
 
 
@@ -73,7 +73,7 @@ def load_functions():
     functions_db = {}
     
     if not EXAMPLES_DIR.exists():
-        print(f"⚠️ Examples directory not found: {EXAMPLES_DIR}")
+        print(f"[WARN] Examples directory not found: {EXAMPLES_DIR}")
         return
     
     # 遍历 examples 目录下的所有子目录
@@ -86,9 +86,9 @@ def load_functions():
                     func_id = func_data.get('id')
                     if func_id:
                         functions_db[func_id] = func_data
-                        print(f"✅ Loaded: {func_id}")
+                        print(f"[OK] Loaded: {func_id}")
     
-    print(f"📦 Loaded {len(functions_db)} functions from {EXAMPLES_DIR}")
+    print(f"[DATA] Loaded {len(functions_db)} functions from {EXAMPLES_DIR}")
     
     # 同时加载持久化数据（如果有）
     if FUNCTIONS_FILE.exists():
@@ -99,9 +99,9 @@ def load_functions():
                 for func_id, func_data in persisted.items():
                     if func_id not in functions_db:
                         functions_db[func_id] = func_data
-            print(f"📦 Loaded {len(persisted)} persisted functions")
+            print(f"[DATA] Loaded {len(persisted)} persisted functions")
         except Exception as e:
-            print(f"⚠️ Failed to load persisted functions: {e}")
+            print(f"[WARN] Failed to load persisted functions: {e}")
 
 
 def save_functions():
@@ -141,13 +141,20 @@ vector_service = VectorSearchService()
 @app.on_event("startup")
 async def startup_event():
     """启动时加载数据"""
+    if USE_DATABASE:
+        try:
+            from database import init_db
+            init_db()
+        except Exception as e:
+            print(f"[WARN] Database initialization skipped: {e}")
+
     load_functions()
     
     # 加载到向量索引
     for func_id, func_data in functions_db.items():
         vector_service.add_function(func_id, func_data)
     
-    print(f"🚀 Server started with {len(functions_db)} functions indexed")
+    print(f"[SERVER] Started with {len(functions_db)} functions indexed")
 
 
 # 数据模型 - FunctionSpec v0.1 格式
@@ -545,25 +552,25 @@ try:
     if USE_DATABASE:
         from api_db import router as db_router
         app.include_router(db_router)
-        print("✅ Database API routes registered")
+        print("[OK] Database API routes registered")
 except Exception as e:
-    print(f"⚠️  Database API not loaded: {e}")
+    print(f"[WARN] Database API not loaded: {e}")
 
 try:
     # 执行 API
     from api_execute import router as execute_router
     app.include_router(execute_router)
-    print("✅ Execute API routes registered")
+    print("[OK] Execute API routes registered")
 except Exception as e:
-    print(f"⚠️  Execute API not loaded: {e}")
+    print(f"[WARN] Execute API not loaded: {e}")
 
 try:
     # 认证 API
     from api_auth import router as auth_router
     app.include_router(auth_router)
-    print("✅ Auth API routes registered")
+    print("[OK] Auth API routes registered")
 except Exception as e:
-    print(f"⚠️  Auth API not loaded: {e}")
+    print(f"[WARN] Auth API not loaded: {e}")
 
 
 if __name__ == "__main__":

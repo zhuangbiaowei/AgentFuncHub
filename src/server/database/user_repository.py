@@ -40,6 +40,7 @@ class UserRepository:
         return self.db.query(User).filter(User.api_key == api_key).first()
     
     def create(self, username: str, email: str, 
+               hashed_password: Optional[str] = None,
                github_id: Optional[str] = None,
                avatar_url: Optional[str] = None,
                api_key: Optional[str] = None) -> User:
@@ -47,6 +48,7 @@ class UserRepository:
         user = User(
             username=username,
             email=email,
+            hashed_password=hashed_password,
             github_id=github_id,
             avatar_url=avatar_url,
             api_key=api_key

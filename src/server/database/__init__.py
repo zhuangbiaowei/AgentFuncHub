@@ -5,7 +5,7 @@
 
 import os
 from contextlib import contextmanager
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
 
@@ -49,7 +49,7 @@ else:
     )
     USE_SQLITE = False
 
-print(f"🗄️  Using database: {'SQLite' if USE_SQLITE else 'PostgreSQL'}")
+print(f"[DB] Using database: {'SQLite' if USE_SQLITE else 'PostgreSQL'}")
 
 # 创建会话工厂
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -81,7 +81,7 @@ get_db = get_db_context
 
 def get_db_session() -> Generator[Session, None, None]:
     """
-    获取数据库会话 (用于 FastAPI Depends)
+    获取数据库会话 (用于依赖注入)
     
     用法:
         @app.get("/users")
@@ -99,27 +99,12 @@ def get_db_session() -> Generator[Session, None, None]:
         db.close()
 
 
-def get_db_session() -> Session:
-    """
-    获取数据库会话 (用于依赖注入)
-    
-    用法:
-        @app.get("/users")
-        def get_users(db: Session = Depends(get_db_session)):
-            return db.query(User).all()
-    """
-    db = SessionLocal()
-    try:
-        return db
-    finally:
-        db.close()
-
-
 def init_db():
     """初始化数据库 (创建表)"""
     from .models import Base
     Base.metadata.create_all(bind=engine)
-    print("✅ Database tables created")
+    _ensure_auth_columns()
+    print("[OK] Database tables created")
 
 
 def reset_db():
@@ -127,4 +112,20 @@ def reset_db():
     from .models import Base
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
-    print("✅ Database reset complete")
+    print("[OK] Database reset complete")
+
+
+def _ensure_auth_columns():
+    """确保认证相关列存在，避免旧库缺列导致注册/登录失败。"""
+    inspector = inspect(engine)
+    if "users" not in inspector.get_table_names():
+        return
+
+    user_columns = {col["name"] for col in inspector.get_columns("users")}
+    if "hashed_password" in user_columns:
+        return
+
+    alter_sql = "ALTER TABLE users ADD COLUMN hashed_password VARCHAR(255)"
+    with engine.begin() as conn:
+        conn.execute(text(alter_sql))
+    print("[OK] Added missing column users.hashed_password")

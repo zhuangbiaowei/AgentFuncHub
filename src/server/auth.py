@@ -17,7 +17,8 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 # 密码哈希
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# 使用 passlib 内置算法，避免不同 bcrypt 版本组合导致的运行时兼容问题。
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 
 class User(BaseModel):

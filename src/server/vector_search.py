@@ -26,11 +26,11 @@ class VectorSearchService:
         try:
             from sentence_transformers import SentenceTransformer
             self.model = SentenceTransformer(model_name)
-            print(f"✅ Loaded embedding model: {model_name}")
+            print(f"[SEARCH] Loaded embedding model: {model_name}")
         except ImportError:
-            print("⚠️ sentence-transformers not installed, using keyword fallback")
+            print("[SEARCH] sentence-transformers not installed, using keyword fallback")
         except Exception as e:
-            print(f"⚠️ Failed to load model: {e}, using keyword fallback")
+            print(f"[SEARCH] Failed to load model: {e}, using keyword fallback")
     
     def _create_text_representation(self, func_data: Dict) -> str:
         """
@@ -85,7 +85,7 @@ class VectorSearchService:
             
             return True
         except Exception as e:
-            print(f"❌ Failed to add function {function_id}: {e}")
+            print(f"[SEARCH] Failed to add function {function_id}: {e}")
             return False
     
     def search(self, query: str, top_k: int = 10) -> List[Tuple[str, float]]:
@@ -121,7 +121,7 @@ class VectorSearchService:
             return results
             
         except Exception as e:
-            print(f"❌ Search failed: {e}")
+            print(f"[SEARCH] Search failed: {e}")
             return []
     
     def search_hybrid(self, query: str, keyword_matches: List[str], top_k: int = 10) -> List[Tuple[str, float]]:

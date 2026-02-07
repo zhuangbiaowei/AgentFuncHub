@@ -69,6 +69,7 @@ class User(Base):
     id = Column(UUID, primary_key=True, default=uuid.uuid4)
     username = Column(String(50), unique=True, nullable=False)
     email = Column(String(255), unique=True, nullable=False)
+    hashed_password = Column(String(255), nullable=True)
     github_id = Column(String(100), unique=True, nullable=True)
     api_key = Column(String(64), unique=True, nullable=True)
     avatar_url = Column(Text, nullable=True)

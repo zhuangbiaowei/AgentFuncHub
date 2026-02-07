@@ -6,13 +6,14 @@
 from fastapi import APIRouter, HTTPException, Depends, Request, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional
 from sqlalchemy.orm import Session
 
 from auth import (
     create_access_token, create_refresh_token, 
     get_user_id_from_token, verify_refresh_token,
+    get_password_hash, verify_password,
     Token
 )
 from github_oauth import (
@@ -35,7 +36,7 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 # 请求/响应模型
 class UserRegister(BaseModel):
     username: str
-    email: EmailStr
+    email: str
     password: str
     full_name: Optional[str] = None
 
@@ -123,6 +124,7 @@ async def register(data: UserRegister, db: Session = Depends(get_db_session)):
     user = repo.create(
         username=data.username,
         email=data.email,
+        hashed_password=get_password_hash(data.password),
     )
     
     # 生成 Token
@@ -145,10 +147,23 @@ async def login(data: UserLogin, db: Session = Depends(get_db_session)):
     user = repo.get_by_username(data.username)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid username or password")
-    
-    # TODO: 验证密码（需要添加密码字段到 User 模型）
-    # 暂时只支持 GitHub OAuth 登录
-    raise HTTPException(status_code=400, detail="Please use GitHub OAuth login")
+
+    # GitHub OAuth 账号可能没有本地密码
+    if not user.hashed_password:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    if not verify_password(data.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    access_token = create_access_token(str(user.id))
+    refresh_token = create_refresh_token(str(user.id))
+
+    return Token(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer",
+        expires_in=1800
+    )
 
 
 @router.post("/refresh", response_model=Token)

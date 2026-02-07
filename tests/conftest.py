@@ -27,10 +27,10 @@ def setup_test_database():
     """在整个测试会话开始时初始化数据库"""
     # 重置数据库（删除并重新创建表）
     reset_db()
-    print("\n🗄️  Test database initialized (SQLite mode)")
+    print("\n[TEST] Test database initialized (SQLite mode)")
     yield
     # 测试会话结束后的清理
-    print("\n🧹 Test session completed")
+    print("\n[TEST] Test session completed")
 
 
 @pytest.fixture
